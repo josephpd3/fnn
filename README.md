@@ -1,6 +1,6 @@
 # fnn - Ferrous Neural Networks
 --------
-## Simple Neural Networks in Rust
+### Simple Neural Networks in Rust
 --------
 
 
