@@ -27,8 +27,6 @@ macro_rules! matrix {
 
         let mut outer = vec![];
 
-        //let mut mat_vec = vec![];
-
         $(
             let mut inner = vec![];
             $(
@@ -36,12 +34,6 @@ macro_rules! matrix {
             )+
             outer.push(inner);
         )+
-
-        // for inner in &outer {
-        //     for val in inner {
-        //         mat_vec.push(*val);
-        //     }
-        // }
 
         Matrix {
             rows: outer.len(),
@@ -62,11 +54,11 @@ macro_rules! matrix {
 #[derive(Debug)]
 pub struct Matrix {
     /// rows in the matrix
-    rows: usize,
+    pub rows: usize,
     /// columns in the matrix
-    cols: usize,
+    pub cols: usize,
     /// data within the matrix
-    data: Vec<Vec<f64>>
+    pub data: Vec<Vec<f64>>
 }
 
 impl Matrix {
