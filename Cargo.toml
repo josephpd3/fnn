@@ -4,6 +4,6 @@ version = "0.1.0"
 authors = ["Joseph P DeBartola III <josephdebartola@gmail.com>"]
 
 [dependencies]
-ndarray = "*"
 csv = "*"
 rustc-serialize = "*"
+rand = "*"
