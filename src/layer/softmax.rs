@@ -1,27 +1,24 @@
 use layer::layer::*;
 use matrix::Matrix;
 
-/// A Neural Network layer modeled after classic hidden layer model
-/// of a single dimensional row of neurons with a simple activation function
-/// which, for now, is limited to the sigmoid function.
-pub struct FullyConnectedLayer {
-    weights: Matrix,
+pub struct SoftmaxLayer {
+    pub weights: Matrix,
     last_weight_update: Option<Matrix>,
-    biases: Matrix,
+    pub biases: Matrix,
     last_bias_update: Option<Matrix>,
     last_input: Option<Matrix>,
     last_output: Option<Matrix>,
-    input_len: usize,
-    output_len: usize
+    pub input_len: usize,
+    pub output_len: usize
 }
 
-impl FullyConnectedLayer {
+impl SoftmaxLayer {
 
-    pub fn new(input_len: usize, num_neurons: usize) -> Self {
-        let initial_weights = Matrix::gaussian(input_len, num_neurons);
-        let initial_biases = Matrix::gaussian(num_neurons, 1);
+    pub fn new(input_len: usize, num_classes: usize) -> Self {
+        let initial_weights = Matrix::gaussian(input_len, num_classes);
+        let initial_biases = Matrix::gaussian(num_classes, 1);
 
-        FullyConnectedLayer {
+        SoftmaxLayer {
             weights: initial_weights,
             last_weight_update: None,
             biases: initial_biases,
@@ -29,7 +26,7 @@ impl FullyConnectedLayer {
             last_input: None,
             last_output: None,
             input_len: input_len,
-            output_len: num_neurons
+            output_len: num_classes
         }
     }
 
@@ -46,21 +43,30 @@ impl FullyConnectedLayer {
 }
 
 #[allow(non_snake_case)] // For derivative variable names...
-impl Layer for FullyConnectedLayer {
+impl Layer for SoftmaxLayer {
 
     fn forward_prop(&mut self, input: &Matrix, batch_size: usize) -> ForwardPropResult {
-        let sigmoid = |z: f64| 1f64 / (1f64 + (1f64 / z.exp()));
-
         self.last_input = Some(input.explicit_copy());
 
-        // println!("Weight matrix rows: {}", self.weights.data.len());
-        // println!("Weight matrix cols: {}", self.weights.data[0].len());
-
-        // println!("Input matrix rows: {}", input.data.len());
-        // println!("Input matrix cols: {}", input.data[0].len());
-
         let to_activate = &(&self.weights.transpose() * input) + &self.get_batch_size_biases(batch_size);
-        let output = to_activate.mat_map(sigmoid);
+        let exponentiated = to_activate.mat_map(|x| x.exp());
+        let summed = exponentiated.sum_rows();
+
+        let mut activated_outer = vec![];
+
+        for row in 0..exponentiated.rows {
+            let mut activated_inner = vec![];
+            for col in 0..exponentiated.cols {
+                activated_inner.push(exponentiated[row][col] / summed[0][col]);
+            }
+            activated_outer.push(activated_inner);
+        }
+
+        let output = Matrix {
+            rows: self.output_len,
+            cols: batch_size,
+            data: activated_outer
+        };
 
         self.last_output = Some(output.explicit_copy());
 
@@ -68,19 +74,33 @@ impl Layer for FullyConnectedLayer {
     }
 
     fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> BackPropResult {
-        // Consume the existing matrices inside the Option<> and replace them with None.
-        // Rightuflly panics if a forward_prop wasn't performed, saving the last input
-        // and output
+        // The loss function actually takes us all the way to dC_dz!
+
+        // println!("Weight matrix rows: {}", self.weights.data.len());
+        // println!("Weight matrix cols: {}", self.weights.data[0].len());
+
+        // println!("BP_DERIV matrix rows: {}", bp_deriv.data.len());
+        // println!("BP_DERIV matrix cols: {}", bp_deriv.data[0].len());
+
         let last_input_ref = &self.last_input.take().unwrap();
         let last_output_ref = &self.last_output.take().unwrap();
 
-        let dy_dz = last_output_ref.ew_multiply(&last_output_ref.mat_map(|y| 1f64 - y));
-        let dE_dz = bp_deriv.ew_multiply(&dy_dz);
-        let dE_dw = last_input_ref * &dE_dz.transpose();
-        let dE_dx = &self.weights * &dE_dz;
+        // println!("Last input matrix rows: {}", last_input_ref.data.len());
+        // println!("Last input matrix cols: {}", last_input_ref.data[0].len());
+
+        // println!("Last output matrix rows: {}", last_output_ref.data.len());
+        // println!("Last output matrix cols: {}", last_output_ref.data[0].len());
+
+        let dE_dw = last_input_ref * &bp_deriv.transpose();
+
+        // println!("dE_dw assigned!");
+
+        let dE_dx = &self.weights * bp_deriv;
+
+        // println!("dE_dx assigned!");
 
         self.update_weights(learning_rate, &dE_dw, batch_size)?;
-        self.update_biases(learning_rate, &dE_dz.sum_cols(), batch_size)?;
+        self.update_biases(learning_rate, &bp_deriv.sum_cols(), batch_size)?;
 
         Ok(dE_dx)
     }
@@ -126,4 +146,5 @@ impl Layer for FullyConnectedLayer {
     fn get_output_len(&self) -> usize {
         self.output_len
     }
+
 }

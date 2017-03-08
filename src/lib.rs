@@ -7,6 +7,12 @@ extern crate rand;
 pub mod layer;
 pub mod matrix;
 pub mod util;
+pub mod dataset;
+pub mod model;
+
+pub use dataset::DataSet;
+pub use model::Model;
+pub use layer::FNNLayer;
 
 #[cfg(test)]
 mod tests {

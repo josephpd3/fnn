@@ -223,8 +223,8 @@ impl Matrix {
         }
 
         Matrix {
-            rows: self.rows,
-            cols: self.cols,
+            rows: self.cols,
+            cols: self.rows,
             data: outer
         }
     }
@@ -269,10 +269,36 @@ impl Matrix {
         }
     }
 
+    /// Explicitly copies the Matrix. Be warned, this is likely not optimal!
+    pub fn explicit_copy(&self) -> Matrix {
+        let mut outer = vec![];
+
+        //println!("Making an explicit copy of matrix with {} rows and {} cols", self.rows, self.cols);
+
+        for row in 0..self.rows {
+            let mut inner = vec![];
+
+            for col in 0..self.cols {
+                inner.push(self[row][col]);
+            }
+
+            outer.push(inner);
+        }
+
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data: outer
+        }
+    }
+
     /// Performs elementwise multiplication of Matrix with another Matrix
     ///
     pub fn ew_multiply(&self, other: &Matrix) -> Matrix {
         let mut outer = vec![];
+
+        assert!(self.rows == other.rows, "Rows not equal in elementwise multiply!");
+        assert!(self.cols == other.cols, "Rows not equal in elementwise multiply!");
 
         for row in 0..self.rows {
             let mut inner = vec![];
@@ -447,6 +473,22 @@ impl Matrix {
         }
     }
 
+    pub fn sum_rows(&self) -> Matrix {
+        let mut inner = vec![];
+        for col in 0..self.cols {
+            let mut sum = 0f64;
+            for row in 0..self.rows {
+                sum += self[row][col]
+            }
+            inner.push(sum);
+        }
+        Matrix {
+            rows: 1,
+            cols: self.cols,
+            data: vec![inner]
+        }
+    }
+
 }
 
 #[derive(Debug)]
@@ -496,6 +538,8 @@ impl Add<Matrix> for Matrix {
 
     fn add(self, other: Matrix) -> Matrix {
         let mut output_as_vec = vec![];
+        assert!(self.rows == other.rows, "Rows not equal in addition!");
+        assert!(self.cols == other.cols, "Rows not equal in addition!");
 
         for row in 0..self.rows {
             for col in 0..self.cols {
@@ -512,6 +556,8 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
 
     fn add(self, other: &'b Matrix) -> Matrix {
         let mut output_as_vec = vec![];
+        assert!(self.rows == other.rows, "Rows not equal in addition!");
+        assert!(self.cols == other.cols, "Rows not equal in addition!");
 
         for row in 0..self.rows {
             for col in 0..self.cols {
@@ -529,6 +575,8 @@ impl Sub<Matrix> for Matrix {
 
     fn sub(self, other: Matrix) -> Matrix {
         let mut output_as_vec = vec![];
+        assert!(self.rows == other.rows, "Rows not equal in subtraction!");
+        assert!(self.cols == other.cols, "Rows not equal in subtraction!");
 
         for row in 0..self.rows {
             for col in 0..self.cols {
@@ -545,6 +593,8 @@ impl<'a, 'b> Sub<&'b Matrix> for &'a Matrix {
 
     fn sub(self, other: &'b Matrix) -> Matrix {
         let mut output_as_vec = vec![];
+        assert!(self.rows == other.rows, "Rows not equal in subtraction!");
+        assert!(self.cols == other.cols, "Rows not equal in subtraction!");
 
         for row in 0..self.rows {
             for col in 0..self.cols {
@@ -580,6 +630,7 @@ impl Mul<Matrix> for Matrix {
     type Output = Matrix;
 
     fn mul(self, other: Matrix) -> Matrix {
+        assert!(self.cols == other.rows, "LHS and RHS dims don't match for multiply!");
         let output_rows = self.rows;
         let output_cols = other.cols;
         let mut output_as_vec = vec![];
@@ -590,7 +641,7 @@ impl Mul<Matrix> for Matrix {
 
                 // Elementwise multiply self row by other column
                 for i in 0..self.cols {
-                    sum += self[row][i] * self[i][col];
+                    sum += self[row][i] * other[i][col];
                 }
 
                 output_as_vec.push(sum);
@@ -605,6 +656,7 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
     type Output = Matrix;
 
     fn mul(self, other: &'b Matrix) -> Matrix {
+        assert!(self.cols == other.rows, "LHS and RHS dims don't match for multiply!");
         let output_rows = self.rows;
         let output_cols = other.cols;
         let mut output_as_vec = vec![];
@@ -615,7 +667,33 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
 
                 // Elementwise multiply self row by other column
                 for i in 0..self.cols {
-                    sum += self[row][i] * self[i][col];
+                    sum += self[row][i] * other[i][col];
+                }
+
+                output_as_vec.push(sum);
+            }
+        }
+
+        Matrix::new(output_rows, output_cols, &output_as_vec)
+    }
+}
+
+impl<'a, 'b> Mul<&'b Matrix> for &'a mut Matrix {
+    type Output = Matrix;
+
+    fn mul(self, other: &'b Matrix) -> Matrix {
+        assert!(self.cols == other.rows, "LHS and RHS dims don't match for multiply!");
+        let output_rows = self.rows;
+        let output_cols = other.cols;
+        let mut output_as_vec = vec![];
+
+        for row in 0..self.rows {
+            for col in 0..other.cols {
+                let mut sum = 0f64;
+
+                // Elementwise multiply self row by other column
+                for i in 0..self.cols {
+                    sum += self[row][i] * other[i][col];
                 }
 
                 output_as_vec.push(sum);
