@@ -74,7 +74,7 @@ impl Layer for FullyConnectedLayer {
         let last_input_ref = &self.last_input.take().unwrap();
         let last_output_ref = &self.last_output.take().unwrap();
 
-        let dy_dz = last_output_ref.ew_multiply(&last_output_ref.mat_map(|y| 1f64 - y));
+        let dy_dz = last_output_ref.ew_multiply(&last_output_ref.mat_map(|y| 1.0f64 - y));
         let dE_dz = bp_deriv.ew_multiply(&dy_dz);
         let dE_dw = last_input_ref * &dE_dz.transpose();
         let dE_dx = &self.weights * &dE_dz;

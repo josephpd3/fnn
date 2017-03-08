@@ -13,7 +13,9 @@ pub struct Batch {
 /// This trait allows any dataset to be passed into the Model as long as it
 /// fulfills the basic, required functions
 pub trait DataSet {
-    fn get_random_minibatch(&self, batch_size: usize) -> Batch;
+    fn get_random_minibatch(&mut self, batch_size: usize) -> Batch;
+
+    fn replenish_minibatches(&mut self);
 
     fn get_training_set_size(&self) -> usize;
 

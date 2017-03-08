@@ -47,7 +47,8 @@ impl From<LayerError> for Error {
 
 pub struct Model<T> {
     pub dataset: T,
-    pub layers: Vec<Box<Layer>>
+    pub layers: Vec<Box<Layer>>,
+    pub learning_rate: f64
 }
 
 pub type LossFunctionResult = result::Result<Matrix, Error>;
@@ -61,7 +62,8 @@ impl<T> Model<T> where
     pub fn new(dataset: T) -> Model<T> {
         Model {
             dataset: dataset,
-            layers: vec![]
+            layers: vec![],
+            learning_rate: 0.1f64
         }
     }
 
@@ -114,7 +116,7 @@ impl<T> Model<T> where
             last_test_output = layer.forward_prop(&last_test_output, test_batch.size)?;
         }
         let test_CE = self.calc_cross_entropy(&last_test_output, &test_batch.target, test_batch.size);
-        println!("  Cross Entropy on Test Set: {:.5}", test_CE);
+        println!("  Cross Entropy on Test Set: {:.3}\n  Accuracy: {:.2}%", test_CE, (-test_CE).exp() * 100f64);
 
         Ok(())
     }
@@ -127,16 +129,37 @@ impl<T> Model<T> where
         // TODO
     }
 
+    fn update_learning_rate(&mut self, avg_acc: f64) {
+        let old_learning_rate = self.learning_rate;
+
+        self.learning_rate = match (avg_acc * 100f64) as u8 {
+            1...11 => self.learning_rate,
+            11...21 => 0.09,
+            21...41 => 0.08,
+            41...61 => 0.06,
+            61...81 => 0.04,
+            81...100 => 0.02,
+            _ => { self.learning_rate }
+        };
+
+        if self.learning_rate != old_learning_rate {
+            println!("- - - - - - - - - - - - - - - -");
+            println!("Updating learning rate to {}!", self.learning_rate);
+            println!("- - - - - - - - - - - - - - - -");
+        }
+    }
+
     fn run_epoch(&mut self, batch_size: usize) -> EpochResult {
         let mut training_cases = 0usize;
         let total_training_cases = self.dataset.get_training_set_size();
-        let learning_rate = 0.08;
 
         let mut last_output: Matrix;
         let mut last_deriv: Matrix;
 
-        let mut training_set_avg_CE = 0f64;
+        //let mut training_set_avg_CE = 0f64;
         let mut cross_entropy: f64;
+
+        let mut recent_batches_CE: Vec<f64> = vec![];
 
         // Run Epoch
         println!("Training...");
@@ -152,17 +175,22 @@ impl<T> Model<T> where
 
             // Calculate and Report Cross Entropy Loss for minibatch
             cross_entropy = self.calc_cross_entropy(&last_output, &minibatch.target, batch_size);
-            training_set_avg_CE = training_set_avg_CE + (cross_entropy - training_set_avg_CE) / training_cases as f64;
-            println!("  Cross Entropy at {} cases: {:.5}", training_cases, cross_entropy);
+            // training_set_avg_CE = training_set_avg_CE + (cross_entropy - training_set_avg_CE) / training_cases as f64;
+            println!("  Cross Entropy at {} cases: {:.3} with accuracy: {:.2}%", training_cases, cross_entropy, (-cross_entropy).exp() * 100f64);
+
+            recent_batches_CE.push(cross_entropy);
+
+            if recent_batches_CE.len() == 10 {
+                let summed_entropy: f64 = recent_batches_CE.iter().map(|x| (-x).exp()).sum();
+                self.update_learning_rate(summed_entropy / 10f64);
+                recent_batches_CE.clear();
+            }
 
             // Propogate Backward
             last_deriv = &last_output - &minibatch.target;
 
-            // println!("CE_deriv matrix rows: {}", last_deriv.data.len());
-            // println!("CE_deriv matrix cols: {}", last_deriv.data[0].len());
-
             for layer in self.layers.iter_mut().rev() {
-                last_deriv = layer.back_prop(&last_deriv, learning_rate, batch_size)?;
+                last_deriv = layer.back_prop(&last_deriv, self.learning_rate, batch_size)?;
             }
         }
 
@@ -174,9 +202,12 @@ impl<T> Model<T> where
             last_validation_output = layer.forward_prop(&last_validation_output, validation_batch.size)?;
         }
         let validation_CE = self.calc_cross_entropy(&last_validation_output, &validation_batch.target, validation_batch.size);
-        println!("  Cross Entropy on Validation Set: {:.5}", validation_CE);
+        println!("  Cross Entropy on Validation Set: {:.3}\n  Accuracy: {:.2}%", validation_CE, (-validation_CE).exp() * 100f64);
 
-        Ok(training_set_avg_CE)
+        // Replenish the stores!
+        self.dataset.replenish_minibatches();
+
+        Ok(0.0f64)
     }
 
     pub fn evaluate(&self) {

@@ -75,29 +75,11 @@ impl Layer for SoftmaxLayer {
 
     fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> BackPropResult {
         // The loss function actually takes us all the way to dC_dz!
-
-        // println!("Weight matrix rows: {}", self.weights.data.len());
-        // println!("Weight matrix cols: {}", self.weights.data[0].len());
-
-        // println!("BP_DERIV matrix rows: {}", bp_deriv.data.len());
-        // println!("BP_DERIV matrix cols: {}", bp_deriv.data[0].len());
-
         let last_input_ref = &self.last_input.take().unwrap();
         let last_output_ref = &self.last_output.take().unwrap();
 
-        // println!("Last input matrix rows: {}", last_input_ref.data.len());
-        // println!("Last input matrix cols: {}", last_input_ref.data[0].len());
-
-        // println!("Last output matrix rows: {}", last_output_ref.data.len());
-        // println!("Last output matrix cols: {}", last_output_ref.data[0].len());
-
         let dE_dw = last_input_ref * &bp_deriv.transpose();
-
-        // println!("dE_dw assigned!");
-
         let dE_dx = &self.weights * bp_deriv;
-
-        // println!("dE_dx assigned!");
 
         self.update_weights(learning_rate, &dE_dw, batch_size)?;
         self.update_biases(learning_rate, &bp_deriv.sum_cols(), batch_size)?;

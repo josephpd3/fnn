@@ -537,17 +537,26 @@ impl Add<Matrix> for Matrix {
     type Output = Matrix;
 
     fn add(self, other: Matrix) -> Matrix {
-        let mut output_as_vec = vec![];
         assert!(self.rows == other.rows, "Rows not equal in addition!");
-        assert!(self.cols == other.cols, "Rows not equal in addition!");
+        assert!(self.cols == other.cols, "Cols not equal in addition!");
+
+        let mut outer = vec![];
 
         for row in 0..self.rows {
+            let mut inner = vec![];
+
             for col in 0..self.cols {
-                output_as_vec.push(self[row][col] + other[row][col]);
+                inner.push(self[row][col] + other[row][col]);
             }
+
+            outer.push(inner);
         }
 
-        Matrix::new(self.rows, self.cols, &output_as_vec)
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data: outer
+        }
     }
 }
 
@@ -555,17 +564,26 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
     type Output = Matrix;
 
     fn add(self, other: &'b Matrix) -> Matrix {
-        let mut output_as_vec = vec![];
         assert!(self.rows == other.rows, "Rows not equal in addition!");
-        assert!(self.cols == other.cols, "Rows not equal in addition!");
+        assert!(self.cols == other.cols, "Cols not equal in addition!");
+
+        let mut outer = vec![];
 
         for row in 0..self.rows {
+            let mut inner = vec![];
+
             for col in 0..self.cols {
-                output_as_vec.push(self[row][col] + other[row][col]);
+                inner.push(self[row][col] + other[row][col]);
             }
+
+            outer.push(inner);
         }
 
-        Matrix::new(self.rows, self.cols, &output_as_vec)
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data: outer
+        }
     }
 }
 
@@ -574,17 +592,26 @@ impl Sub<Matrix> for Matrix {
     type Output = Matrix;
 
     fn sub(self, other: Matrix) -> Matrix {
-        let mut output_as_vec = vec![];
         assert!(self.rows == other.rows, "Rows not equal in subtraction!");
-        assert!(self.cols == other.cols, "Rows not equal in subtraction!");
+        assert!(self.cols == other.cols, "Cols not equal in subtraction!");
+
+        let mut outer = vec![];
 
         for row in 0..self.rows {
+            let mut inner = vec![];
+
             for col in 0..self.cols {
-                output_as_vec.push(self[row][col] - other[row][col]);
+                inner.push(self[row][col] - other[row][col]);
             }
+
+            outer.push(inner);
         }
 
-        Matrix::new(self.rows, self.cols, &output_as_vec)
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data: outer
+        }
     }
 }
 
@@ -592,17 +619,26 @@ impl<'a, 'b> Sub<&'b Matrix> for &'a Matrix {
     type Output = Matrix;
 
     fn sub(self, other: &'b Matrix) -> Matrix {
-        let mut output_as_vec = vec![];
         assert!(self.rows == other.rows, "Rows not equal in subtraction!");
-        assert!(self.cols == other.cols, "Rows not equal in subtraction!");
+        assert!(self.cols == other.cols, "Cols not equal in subtraction!");
+
+        let mut outer = vec![];
 
         for row in 0..self.rows {
+            let mut inner = vec![];
+
             for col in 0..self.cols {
-                output_as_vec.push(self[row][col] - other[row][col]);
+                inner.push(self[row][col] - other[row][col]);
             }
+
+            outer.push(inner);
         }
 
-        Matrix::new(self.rows, self.cols, &output_as_vec)
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data: outer
+        }
     }
 }
 
@@ -633,9 +669,11 @@ impl Mul<Matrix> for Matrix {
         assert!(self.cols == other.rows, "LHS and RHS dims don't match for multiply!");
         let output_rows = self.rows;
         let output_cols = other.cols;
-        let mut output_as_vec = vec![];
+        let mut outer = vec![];
 
         for row in 0..self.rows {
+            let mut inner = vec![];
+
             for col in 0..other.cols {
                 let mut sum = 0f64;
 
@@ -644,11 +682,17 @@ impl Mul<Matrix> for Matrix {
                     sum += self[row][i] * other[i][col];
                 }
 
-                output_as_vec.push(sum);
+                inner.push(sum);
             }
+
+            outer.push(inner);
         }
 
-        Matrix::new(output_rows, output_cols, &output_as_vec)
+        Matrix {
+            rows: output_rows,
+            cols: output_cols,
+            data: outer
+        }
     }
 }
 
@@ -659,9 +703,11 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
         assert!(self.cols == other.rows, "LHS and RHS dims don't match for multiply!");
         let output_rows = self.rows;
         let output_cols = other.cols;
-        let mut output_as_vec = vec![];
+        let mut outer = vec![];
 
         for row in 0..self.rows {
+            let mut inner = vec![];
+
             for col in 0..other.cols {
                 let mut sum = 0f64;
 
@@ -670,11 +716,17 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
                     sum += self[row][i] * other[i][col];
                 }
 
-                output_as_vec.push(sum);
+                inner.push(sum);
             }
+
+            outer.push(inner);
         }
 
-        Matrix::new(output_rows, output_cols, &output_as_vec)
+        Matrix {
+            rows: output_rows,
+            cols: output_cols,
+            data: outer
+        }
     }
 }
 
@@ -685,9 +737,11 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a mut Matrix {
         assert!(self.cols == other.rows, "LHS and RHS dims don't match for multiply!");
         let output_rows = self.rows;
         let output_cols = other.cols;
-        let mut output_as_vec = vec![];
+        let mut outer = vec![];
 
         for row in 0..self.rows {
+            let mut inner = vec![];
+
             for col in 0..other.cols {
                 let mut sum = 0f64;
 
@@ -696,11 +750,17 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a mut Matrix {
                     sum += self[row][i] * other[i][col];
                 }
 
-                output_as_vec.push(sum);
+                inner.push(sum);
             }
+
+            outer.push(inner);
         }
 
-        Matrix::new(output_rows, output_cols, &output_as_vec)
+        Matrix {
+            rows: output_rows,
+            cols: output_cols,
+            data: outer
+        }
     }
 }
 

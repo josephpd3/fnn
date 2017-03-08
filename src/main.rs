@@ -22,6 +22,8 @@ struct MNISTRecord {
 pub struct MNISTDataSet {
     training_x: Matrix,
     training_y: Matrix,
+    batch_bank_x: Matrix,
+    batch_bank_y: Matrix,
     validation_x: Matrix,
     validation_y: Matrix,
     test_x: Matrix,
@@ -103,8 +105,10 @@ impl MNISTDataSet {
 
         // Send her away!
         MNISTDataSet {
-            training_x: tr_x,
-            training_y: tr_y,
+            training_x: tr_x.explicit_copy(),
+            training_y: tr_y.explicit_copy(),
+            batch_bank_x: tr_x,
+            batch_bank_y: tr_y,
             validation_x: v_x.transpose(),
             validation_y: v_y.transpose(),
             test_x: ts_x.transpose(),
@@ -127,14 +131,14 @@ impl MNISTDataSet {
 }
 
 impl DataSet for MNISTDataSet {
-    fn get_random_minibatch(&self, batch_size: usize) -> Batch {
+    fn get_random_minibatch(&mut self, batch_size: usize) -> Batch {
         let mut batch_x_outer = vec![];
         let mut batch_y_outer = vec![];
 
         while batch_x_outer.len() < batch_size {
-            let rand_idx = rand::random::<usize>() % (self.training_set_size - 1usize);
-            batch_x_outer.push(self.training_x[rand_idx].iter().cloned().collect::<Vec<f64>>());
-            batch_y_outer.push(self.training_y[rand_idx].iter().cloned().collect::<Vec<f64>>());
+            let mut rand_idx = rand::random::<usize>() % self.batch_bank_x.data.len();
+            batch_x_outer.push(self.batch_bank_x.data.remove(rand_idx));
+            batch_y_outer.push(self.batch_bank_y.data.remove(rand_idx));
         }
 
         let batch_x_transpose = Matrix {
@@ -154,6 +158,11 @@ impl DataSet for MNISTDataSet {
             input: batch_x_transpose.transpose(),
             target: batch_y_transpose.transpose()
         }
+    }
+
+    fn replenish_minibatches(&mut self) {
+        self.batch_bank_x = self.training_x.explicit_copy();
+        self.batch_bank_y = self.training_y.explicit_copy();
     }
 
     fn get_training_set_size(&self) -> usize {
@@ -191,18 +200,18 @@ fn main() {
         let record: MNISTRecord = record.unwrap();
         mnist_vec.push(record);
         count += 1;
-        if count > 6_000 {
+        if count > 14_000 {
             break;
         }
     }
 
-    let mnist = MNISTDataSet::new(mnist_vec, 4_000usize, 1_000usize, 1_000usize);
+    let mnist = MNISTDataSet::new(mnist_vec, 10_000usize, 2_000usize, 2_000usize);
     println!("Done!");
 
     let mut model = Model::new(mnist);
 
     model.add(Layer::FullyConnected{ num_neurons: 784 });
-    model.add(Layer::FullyConnected{ num_neurons: 80 });
+    model.add(Layer::FullyConnected{ num_neurons: 100 });
     model.add(Layer::Softmax{ num_classes: 10 });
 
     let batch_size = 100;
