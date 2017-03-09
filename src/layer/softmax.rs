@@ -2,12 +2,24 @@ use layer::layer::*;
 use matrix::Matrix;
 
 pub struct SoftmaxLayer {
+    // Weights
     pub weights: Matrix,
+    weight_learning_rates: Matrix,
+    weight_theta: f64,
+    weight_kappa: f64,
+    weight_gradient_exponential_averages: Matrix,
     last_weight_update: Option<Matrix>,
+    // Biases
     pub biases: Matrix,
+    bias_theta: f64,
+    bias_kappa: f64,
+    bias_learning_rates: Matrix,
+    bias_gradient_exponential_averages: Matrix,
     last_bias_update: Option<Matrix>,
+    // Storage
     last_input: Option<Matrix>,
     last_output: Option<Matrix>,
+    // Dimensionality
     pub input_len: usize,
     pub output_len: usize
 }
@@ -15,7 +27,12 @@ pub struct SoftmaxLayer {
 impl SoftmaxLayer {
 
     pub fn new(input_len: usize, num_classes: usize) -> Self {
+        // Set up weight and update storage
         let initial_weights = Matrix::gaussian(input_len, num_classes);
+        let initial_weight_learning_rates = Matrix::new(input_len, num_classes, &vec![vec![0.8f64; num_classes]; input_len]);
+        let initial_weight_gradient_exponential_averages = Matrix::zeroes(input_len, num_classes);
+
+        // Set up bias and update storage
         let initial_biases = Matrix::gaussian(num_classes, 1);
 
         SoftmaxLayer {
@@ -101,9 +118,23 @@ impl Layer for SoftmaxLayer {
             }
         }
 
-        self.weights = &self.weights - &(weights_delta.mat_map(|x| x * learning_rate));
+        self.update_weight_learning_rates(&gradient);
+
+        self.weights = &self.weights - &weights_delta.ew_multiply(self.weight_learning_rates);
         self.last_weight_update = Some(weights_delta);
         Ok(())
+    }
+
+    fn update_weight_learning_rates(&mut self, weight_gradient: &Matrix) -> WeightLearningRateUpdateResult {
+        let current_trend: f64;
+
+        for row in 0..self.weight_learning_rates.rows {
+            for col in 0..self.weight_learning_rates.cols {
+                current_trend = weight_gradient[row][col] * self.weight_gradient_exponential_averages[row][col];
+
+            }
+        }
+
     }
 
     fn update_biases(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult {
@@ -123,6 +154,10 @@ impl Layer for SoftmaxLayer {
         self.biases = &self.biases - &(bias_delta.mat_map(|x| x * learning_rate));
         self.last_bias_update = Some(bias_delta);
         Ok(())
+    }
+
+    fn update_bias_learning_rates(&mut self, bias_gradient: &Matrix) -> BiasLearningRateUpdateResult {
+
     }
 
     fn get_output_len(&self) -> usize {

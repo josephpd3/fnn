@@ -5,12 +5,20 @@ use matrix::Matrix;
 /// of a single dimensional row of neurons with a simple activation function
 /// which, for now, is limited to the sigmoid function.
 pub struct FullyConnectedLayer {
+    // Weight Management
     weights: Matrix,
+    weight_learning_rates: Matrix,
+    weight_gradient_exponential_averages: Matrix,
     last_weight_update: Option<Matrix>,
+    // Bias Management
     biases: Matrix,
+    bias_learning_rates: Matrix,
+    bias_gradient_exponential_averages: Matrix,
     last_bias_update: Option<Matrix>,
+    // 'member berries
     last_input: Option<Matrix>,
     last_output: Option<Matrix>,
+    // Dimensionality treats
     input_len: usize,
     output_len: usize
 }
@@ -18,16 +26,31 @@ pub struct FullyConnectedLayer {
 impl FullyConnectedLayer {
 
     pub fn new(input_len: usize, num_neurons: usize) -> Self {
+        // Set up weight and update storage
         let initial_weights = Matrix::gaussian(input_len, num_neurons);
+        let initial_weight_learning_rates = Matrix::new(input_len, num_neurons, &vec![vec![0.8f64; num_neurons]; input_len]);
+        let initial_weight_gradient_exponential_averages = Matrix::zeroes(input_len, num_neurons);
+
+        // Set up bias and update storage
         let initial_biases = Matrix::gaussian(num_neurons, 1);
+        let initial_bias_learning_rates = Matrix::new(num_neurons, 1, &vec![vec![0.8f64, 1], num_neurons]);
+        let initial_bias_gradient_exponential_averages = Matrix::zeroes(num_neurons, 1);
 
         FullyConnectedLayer {
+            // Weights
             weights: initial_weights,
+            weight_learning_rates: initial_weight_learning_rates,
+            weight_gradient_exponential_averages: initial_weight_gradient_exponential_averages,
             last_weight_update: None,
+            // Biases
             biases: initial_biases,
+            bias_learning_rates: initial_bias_learning_rates,
+            bias_gradient_exponential_averages: initial_bias_gradient_exponential_averages,
             last_bias_update: None,
+            // Storage
             last_input: None,
             last_output: None,
+            // Dimensionality
             input_len: input_len,
             output_len: num_neurons
         }
@@ -52,12 +75,6 @@ impl Layer for FullyConnectedLayer {
         let sigmoid = |z: f64| 1f64 / (1f64 + (1f64 / z.exp()));
 
         self.last_input = Some(input.explicit_copy());
-
-        // println!("Weight matrix rows: {}", self.weights.data.len());
-        // println!("Weight matrix cols: {}", self.weights.data[0].len());
-
-        // println!("Input matrix rows: {}", input.data.len());
-        // println!("Input matrix cols: {}", input.data[0].len());
 
         let to_activate = &(&self.weights.transpose() * input) + &self.get_batch_size_biases(batch_size);
         let output = to_activate.mat_map(sigmoid);
@@ -99,9 +116,14 @@ impl Layer for FullyConnectedLayer {
             }
         }
 
-        self.weights = &self.weights - &(weights_delta.mat_map(|x| x * learning_rate));
+        self.weights = &self.weights - &weights_delta.ew_multiply(self.weight_learning_rates);
         self.last_weight_update = Some(weights_delta);
         Ok(())
+    }
+
+    fn update_weight_learning_rates(&mut self, weight_gradient: &
+        Matrix) -> WeightLearningRateUpdateResult {
+
     }
 
     fn update_biases(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult {
@@ -121,6 +143,10 @@ impl Layer for FullyConnectedLayer {
         self.biases = &self.biases - &(bias_delta.mat_map(|x| x * learning_rate));
         self.last_bias_update = Some(bias_delta);
         Ok(())
+    }
+
+    fn update_bias_learning_rates(&mut self, bias_gradient: &Matrix) -> BiasLearningRateUpdateResult {
+
     }
 
     fn get_output_len(&self) -> usize {
