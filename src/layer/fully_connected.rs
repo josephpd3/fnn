@@ -1,5 +1,6 @@
 use layer::layer::*;
 use matrix::Matrix;
+use std::cmp;
 
 /// A Neural Network layer modeled after classic hidden layer model
 /// of a single dimensional row of neurons with a simple activation function
@@ -8,10 +9,16 @@ pub struct FullyConnectedLayer {
     // Weight Management
     weights: Matrix,
     weight_learning_rates: Matrix,
+    weight_theta: f64,
+    weight_kappa: f64,
+    weight_phi: f64,
     weight_gradient_exponential_averages: Matrix,
     last_weight_update: Option<Matrix>,
     // Bias Management
     biases: Matrix,
+    bias_theta: f64,
+    bias_kappa: f64,
+    bias_phi: f64,
     bias_learning_rates: Matrix,
     bias_gradient_exponential_averages: Matrix,
     last_bias_update: Option<Matrix>,
@@ -28,23 +35,37 @@ impl FullyConnectedLayer {
     pub fn new(input_len: usize, num_neurons: usize) -> Self {
         // Set up weight and update storage
         let initial_weights = Matrix::gaussian(input_len, num_neurons);
-        let initial_weight_learning_rates = Matrix::new(input_len, num_neurons, &vec![vec![0.8f64; num_neurons]; input_len]);
+        let initial_weight_learning_rates = Matrix {
+            rows: input_len,
+            cols: num_neurons,
+            data: vec![vec![0.8f64; num_neurons]; input_len]
+        };
         let initial_weight_gradient_exponential_averages = Matrix::zeroes(input_len, num_neurons);
 
         // Set up bias and update storage
         let initial_biases = Matrix::gaussian(num_neurons, 1);
-        let initial_bias_learning_rates = Matrix::new(num_neurons, 1, &vec![vec![0.8f64, 1], num_neurons]);
+        let initial_bias_learning_rates = Matrix {
+            rows: num_neurons,
+            cols: 1usize,
+            data: vec![vec![0.8f64; num_neurons]; input_len]
+        };
         let initial_bias_gradient_exponential_averages = Matrix::zeroes(num_neurons, 1);
 
         FullyConnectedLayer {
             // Weights
             weights: initial_weights,
             weight_learning_rates: initial_weight_learning_rates,
+            weight_theta: 0.9f64,
+            weight_kappa: 0.1f64,
+            weight_phi: 0.5f64,
             weight_gradient_exponential_averages: initial_weight_gradient_exponential_averages,
             last_weight_update: None,
             // Biases
             biases: initial_biases,
             bias_learning_rates: initial_bias_learning_rates,
+            bias_theta: 0.9f64,
+            bias_kappa: 0.1f64,
+            bias_phi: 0.5f64,
             bias_gradient_exponential_averages: initial_bias_gradient_exponential_averages,
             last_bias_update: None,
             // Storage
@@ -84,7 +105,7 @@ impl Layer for FullyConnectedLayer {
         Ok(output)
     }
 
-    fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> BackPropResult {
+    fn back_prop(&mut self, bp_deriv: &Matrix, batch_size: usize) -> BackPropResult {
         // Consume the existing matrices inside the Option<> and replace them with None.
         // Rightuflly panics if a forward_prop wasn't performed, saving the last input
         // and output
@@ -96,13 +117,13 @@ impl Layer for FullyConnectedLayer {
         let dE_dw = last_input_ref * &dE_dz.transpose();
         let dE_dx = &self.weights * &dE_dz;
 
-        self.update_weights(learning_rate, &dE_dw, batch_size)?;
-        self.update_biases(learning_rate, &dE_dz.sum_cols(), batch_size)?;
+        self.update_weights(&dE_dw, batch_size)?;
+        self.update_biases(&dE_dz.sum_cols(), batch_size)?;
 
         Ok(dE_dx)
     }
 
-    fn update_weights(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> WeightUpdateResult {
+    fn update_weights(&mut self, gradient: &Matrix, batch_size: usize) -> WeightUpdateResult {
         let weights_delta: Matrix;
         let momentum = 0.9f64;
 
@@ -116,17 +137,61 @@ impl Layer for FullyConnectedLayer {
             }
         }
 
-        self.weights = &self.weights - &weights_delta.ew_multiply(self.weight_learning_rates);
+        self.update_weight_learning_rates(&gradient);
+
+        let limit_delta = |d: f64 | -> f64 {
+            match d {
+                val if val > 0.0 => val.min(50.0).max(10.0e-7),
+                val if val > 0.0 => val.max(-50.0).min(-10.0e-7),
+                _ => d
+            }
+        };
+
+        self.weights = &self.weights - &weights_delta.ew_multiply(&self.weight_learning_rates)
+                                                     .mat_map(limit_delta);
         self.last_weight_update = Some(weights_delta);
         Ok(())
     }
 
     fn update_weight_learning_rates(&mut self, weight_gradient: &
         Matrix) -> WeightLearningRateUpdateResult {
+        let mut current_trend: f64;
+        let mut outer = vec![];
 
+        for row in 0..self.weight_learning_rates.rows {
+            let mut inner = vec![];
+
+            for col in 0..self.weight_learning_rates.cols {
+                let learning_rate_delta: f64;
+
+                current_trend = weight_gradient[row][col] * self.weight_gradient_exponential_averages[row][col];
+
+                if current_trend > 0.0 {
+                    learning_rate_delta = self.weight_kappa;
+                } else if current_trend < 0.0 {
+                    learning_rate_delta = -self.weight_phi * self.weight_learning_rates[row][col];
+                } else {
+                    learning_rate_delta = 0.0;
+                }
+
+                inner.push(learning_rate_delta);
+            }
+            outer.push(inner);
+        }
+
+        let learning_rate_delta_mat = Matrix {
+            rows: self.weight_learning_rates.rows,
+            cols: self.weight_learning_rates.cols,
+            data: outer
+        };
+
+        self.weight_learning_rates = &self.weight_learning_rates + &learning_rate_delta_mat;
+        self.weight_gradient_exponential_averages = weight_gradient.mat_map(|dw| (1.0 - self.weight_theta) * dw) + self.weight_gradient_exponential_averages.mat_map(|a| a * self.weight_theta);
+
+        Ok(())
     }
 
-    fn update_biases(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult {
+    fn update_biases(&mut self, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult {
         let bias_delta: Matrix;
         let momentum = 0.9f64;
 
@@ -140,13 +205,48 @@ impl Layer for FullyConnectedLayer {
             }
         }
 
-        self.biases = &self.biases - &(bias_delta.mat_map(|x| x * learning_rate));
+        self.update_bias_learning_rates(&gradient);
+
+        self.biases = &self.biases - &bias_delta.ew_multiply(&self.bias_learning_rates);
         self.last_bias_update = Some(bias_delta);
         Ok(())
     }
 
     fn update_bias_learning_rates(&mut self, bias_gradient: &Matrix) -> BiasLearningRateUpdateResult {
+        let mut current_trend: f64;
+        let mut outer = vec![];
 
+        for row in 0..self.bias_learning_rates.rows {
+            let mut inner = vec![];
+
+            for col in 0..self.bias_learning_rates.cols {
+                let learning_rate_delta: f64;
+
+                current_trend = bias_gradient[row][col] * self.bias_gradient_exponential_averages[row][col];
+
+                if current_trend > 0.0 {
+                    learning_rate_delta = self.bias_kappa;
+                } else if current_trend < 0.0 {
+                    learning_rate_delta = -self.bias_phi * self.bias_learning_rates[row][col];
+                } else {
+                    learning_rate_delta = 0.0;
+                }
+
+                inner.push(learning_rate_delta);
+            }
+            outer.push(inner);
+        }
+
+        let learning_rate_delta_mat = Matrix {
+            rows: self.bias_learning_rates.rows,
+            cols: self.bias_learning_rates.cols,
+            data: outer
+        };
+
+        self.bias_learning_rates = &self.bias_learning_rates + &learning_rate_delta_mat;
+        self.bias_gradient_exponential_averages = bias_gradient.mat_map(|dx| (1.0 - self.bias_theta) * dx) + self.bias_gradient_exponential_averages.mat_map(|a| a * self.bias_theta);
+
+        Ok(())
     }
 
     fn get_output_len(&self) -> usize {

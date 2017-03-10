@@ -48,7 +48,7 @@ pub type WeightLearningRateUpdateResult = result::Result<(), Error>;
 /// An aliased type for a Result<Matrix, Error>
 pub type BiasUpdateResult = result::Result<(), Error>;
 
-pub type BiasLearningRateUpdateResult - result::Result<(), Error>;
+pub type BiasLearningRateUpdateResult = result::Result<(), Error>;
 
 pub trait Layer {
     /// Propagates input forward through the layer to produce an output Matrix
@@ -57,17 +57,17 @@ pub trait Layer {
     /// Propoagates a given derivative backward through the layer,
     /// updating the weights and biases within and producing a
     /// consecutive derivative Matrix to further propogate backwards
-    fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> BackPropResult;
+    fn back_prop(&mut self, bp_deriv: &Matrix, batch_size: usize) -> BackPropResult;
 
     /// Given a learning rate and a Matrix of gradients for the weights,
     /// update the weights in the layer
-    fn update_weights(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize)  -> WeightUpdateResult;
+    fn update_weights(&mut self, gradient: &Matrix, batch_size: usize)  -> WeightUpdateResult;
 
     fn update_weight_learning_rates(&mut self, weight_gradient: &Matrix) -> WeightLearningRateUpdateResult;
 
     /// Given a learning rate and a Matrix of gradients for the biases,
     /// update the biases in the layer
-    fn update_biases(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult;
+    fn update_biases(&mut self, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult;
 
     fn update_bias_learning_rates(&mut self, bias_gradient: &Matrix) -> BiasLearningRateUpdateResult;
 

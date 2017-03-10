@@ -47,8 +47,7 @@ impl From<LayerError> for Error {
 
 pub struct Model<T> {
     pub dataset: T,
-    pub layers: Vec<Box<Layer>>,
-    pub learning_rate: f64
+    pub layers: Vec<Box<Layer>>
 }
 
 pub type LossFunctionResult = result::Result<Matrix, Error>;
@@ -62,8 +61,7 @@ impl<T> Model<T> where
     pub fn new(dataset: T) -> Model<T> {
         Model {
             dataset: dataset,
-            layers: vec![],
-            learning_rate: 0.1f64
+            layers: vec![]
         }
     }
 
@@ -99,7 +97,6 @@ impl<T> Model<T> where
 
     pub fn fit(&mut self, batch_size: usize, num_epochs: usize) -> FittingReult {
         let layer_output: Matrix;
-        let batch_size = 100usize;
         let mut avg_CE: f64;
 
         for epoch in 0..num_epochs {
@@ -127,29 +124,7 @@ impl<T> Model<T> where
 
     fn test(&mut self) {
         // TODO
-    }
-
-    fn update_learning_rate(&mut self, avg_acc: f64) {
-        let old_learning_rate = self.learning_rate;
-
-        self.learning_rate = match (avg_acc * 100f64) as u8 {
-            1...11 => self.learning_rate,
-            11...21 => 0.09,
-            21...41 => 0.08,
-            41...61 => 0.06,
-            61...81 => 0.04,
-            81...100 => 0.02,
-            _ => { self.learning_rate }
-        };
-
-        if self.learning_rate != old_learning_rate {
-            println!("- - - - - - - - - - - - - - - -");
-            println!("Updating learning rate to {}!", self.learning_rate);
-            println!("- - - - - - - - - - - - - - - -");
-        }
-    }
-
-    fn run_epoch(&mut self, batch_size: usize) -> EpochResult {
+    }fn run_epoch(&mut self, batch_size: usize) -> EpochResult {
         let mut training_cases = 0usize;
         let total_training_cases = self.dataset.get_training_set_size();
 
@@ -158,8 +133,6 @@ impl<T> Model<T> where
 
         //let mut training_set_avg_CE = 0f64;
         let mut cross_entropy: f64;
-
-        let mut recent_batches_CE: Vec<f64> = vec![];
 
         // Run Epoch
         println!("Training...");
@@ -176,21 +149,15 @@ impl<T> Model<T> where
             // Calculate and Report Cross Entropy Loss for minibatch
             cross_entropy = self.calc_cross_entropy(&last_output, &minibatch.target, batch_size);
             // training_set_avg_CE = training_set_avg_CE + (cross_entropy - training_set_avg_CE) / training_cases as f64;
-            println!("  Cross Entropy at {} cases: {:.3} with accuracy: {:.2}%", training_cases, cross_entropy, (-cross_entropy).exp() * 100f64);
-
-            recent_batches_CE.push(cross_entropy);
-
-            if recent_batches_CE.len() == 10 {
-                let summed_entropy: f64 = recent_batches_CE.iter().map(|x| (-x).exp()).sum();
-                self.update_learning_rate(summed_entropy / 10f64);
-                recent_batches_CE.clear();
+            if training_cases % 10_000 == 0 {
+                println!("  Cross Entropy at {} cases: {:.3} with accuracy: {:.2}%", training_cases, cross_entropy, (-cross_entropy).exp() * 100f64);
             }
 
             // Propogate Backward
             last_deriv = &last_output - &minibatch.target;
 
             for layer in self.layers.iter_mut().rev() {
-                last_deriv = layer.back_prop(&last_deriv, self.learning_rate, batch_size)?;
+                last_deriv = layer.back_prop(&last_deriv, batch_size)?;
             }
         }
 

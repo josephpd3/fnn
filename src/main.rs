@@ -191,7 +191,7 @@ impl DataSet for MNISTDataSet {
 }
 
 fn main() {
-    let mut rdr = Reader::from_file("./data/train.csv").unwrap();
+    let mut rdr = Reader::from_file("./data/mnist_train.csv").unwrap();
     let mut mnist_vec = vec![];
     let mut count = 0;
 
@@ -199,23 +199,25 @@ fn main() {
     for record in rdr.decode() {
         let record: MNISTRecord = record.unwrap();
         mnist_vec.push(record);
-        count += 1;
-        if count > 14_000 {
-            break;
-        }
     }
 
-    let mnist = MNISTDataSet::new(mnist_vec, 10_000usize, 2_000usize, 2_000usize);
+    rdr = Reader::from_file("./data/mnist_test.csv").unwrap();
+    for record in rdr.decode() {
+        let record: MNISTRecord = record.unwrap();
+        mnist_vec.push(record);
+    }
+
+    let mnist = MNISTDataSet::new(mnist_vec, 60_000usize, 5_000usize, 5_000usize);
     println!("Done!");
 
     let mut model = Model::new(mnist);
 
     model.add(Layer::FullyConnected{ num_neurons: 784 });
-    model.add(Layer::FullyConnected{ num_neurons: 100 });
+    model.add(Layer::FullyConnected{ num_neurons: 80 });
     model.add(Layer::Softmax{ num_classes: 10 });
 
-    let batch_size = 100;
-    let num_epochs = 3;
+    let batch_size = 10000;
+    let num_epochs = 20;
 
     model.fit(batch_size, num_epochs);
 }
