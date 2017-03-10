@@ -46,7 +46,7 @@ impl MNISTDataSet {
         let mut training_y_outer = vec![];
 
         for idx in 0..training_set_size {
-            training_x_outer.push(records[idx].image_data.iter().map(|x| *x as f64).collect::<Vec<f64>>());
+            training_x_outer.push(records[idx].image_data.iter().map(|x| (*x as f64) / 255.0).collect::<Vec<f64>>());
             training_y_outer.push(MNISTDataSet::create_class_onehot(records[idx].class));
         }
         // 2) Break down validation set
@@ -54,7 +54,7 @@ impl MNISTDataSet {
         let mut validation_y_outer = vec![];
 
         for idx in training_set_size..(training_set_size + validation_set_size) {
-            validation_x_outer.push(records[idx].image_data.iter().map(|x| *x as f64).collect::<Vec<f64>>());
+            validation_x_outer.push(records[idx].image_data.iter().map(|x| (*x as f64) / 255.0).collect::<Vec<f64>>());
             validation_y_outer.push(MNISTDataSet::create_class_onehot(records[idx].class));
         }
 
@@ -63,7 +63,7 @@ impl MNISTDataSet {
         let mut test_y_outer = vec![];
 
         for idx in validation_set_size..(validation_set_size + test_set_size) {
-            test_x_outer.push(records[idx].image_data.iter().map(|x| *x as f64).collect::<Vec<f64>>());
+            test_x_outer.push(records[idx].image_data.iter().map(|x| (*x as f64) / 255.0).collect::<Vec<f64>>());
             test_y_outer.push(MNISTDataSet::create_class_onehot(records[idx].class));
         }
 
@@ -136,7 +136,7 @@ impl DataSet for MNISTDataSet {
         let mut batch_y_outer = vec![];
 
         while batch_x_outer.len() < batch_size {
-            let mut rand_idx = rand::random::<usize>() % self.batch_bank_x.data.len();
+            let rand_idx = rand::random::<usize>() % self.batch_bank_x.data.len();
             batch_x_outer.push(self.batch_bank_x.data.remove(rand_idx));
             batch_y_outer.push(self.batch_bank_y.data.remove(rand_idx));
         }
@@ -191,31 +191,35 @@ impl DataSet for MNISTDataSet {
 }
 
 fn main() {
-    let mut rdr = Reader::from_file("./data/train.csv").unwrap();
+    let mut rdr = Reader::from_file("./data/mnist_train.csv").unwrap();
     let mut mnist_vec = vec![];
-    let mut count = 0;
 
     println!("Creating MNIST Dataset...");
     for record in rdr.decode() {
         let record: MNISTRecord = record.unwrap();
         mnist_vec.push(record);
-        count += 1;
-        if count > 14_000 {
-            break;
-        }
     }
 
-    let mnist = MNISTDataSet::new(mnist_vec, 10_000usize, 2_000usize, 2_000usize);
+    rdr = Reader::from_file("./data/mnist_test.csv").unwrap();
+    for record in rdr.decode() {
+        let record: MNISTRecord = record.unwrap();
+        mnist_vec.push(record);
+    }
+
+    let mnist = MNISTDataSet::new(mnist_vec, 60_000usize, 5_000usize, 5_000usize);
     println!("Done!");
 
     let mut model = Model::new(mnist);
 
-    model.add(Layer::FullyConnected{ num_neurons: 784 });
+    //model.add(Layer::FullyConnected{ num_neurons: 784 });
     model.add(Layer::FullyConnected{ num_neurons: 100 });
     model.add(Layer::Softmax{ num_classes: 10 });
 
     let batch_size = 100;
-    let num_epochs = 3;
+    let num_epochs = 20;
 
-    model.fit(batch_size, num_epochs);
+    match model.fit(batch_size, num_epochs) {
+        Ok(()) => { println!("Done!"); },
+        _ => { println!("Shit!"); }
+    }
 }

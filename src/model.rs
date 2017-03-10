@@ -5,7 +5,7 @@ use std::result;
 
 use layer::{Layer, FNNLayer, FullyConnectedLayer, SoftmaxLayer};
 use layer::Error as LayerError;
-use dataset::{Batch, DataSet};
+use dataset::DataSet;
 use matrix::Matrix;
 
 #[derive(Debug)]
@@ -103,7 +103,7 @@ impl<T> Model<T> where
         let mut avg_CE: f64;
 
         for epoch in 0..num_epochs {
-            avg_CE = self.run_epoch(batch_size)?;
+            self.run_epoch(batch_size)?;
             //println!("Average Cross Entropy for Epoch {}: {}", epoch + 1usize, avg_CE);
             println!("Done with Epoch {}!", epoch + 1usize);
         }
@@ -129,22 +129,34 @@ impl<T> Model<T> where
         // TODO
     }
 
-    fn update_learning_rate(&mut self, avg_acc: f64) {
+    fn update_learning_rate(&mut self, avg_acc: f64, num_cases: usize, total_cases: usize) {
         let old_learning_rate = self.learning_rate;
 
         self.learning_rate = match (avg_acc * 100f64) as u8 {
             1...11 => self.learning_rate,
-            11...21 => 0.09,
-            21...41 => 0.08,
-            41...61 => 0.06,
-            61...81 => 0.04,
-            81...100 => 0.02,
+            11...21 => 0.080,
+            21...41 => 0.060,
+            41...56 => 0.030,
+            56...66 => 0.010,
+            71...76 => 0.0025,
+            76...86 => 0.0020,
+            86...91 => 0.0010,
+            91...100 => 0.0005,
             _ => { self.learning_rate }
         };
 
+        let case_completion_ratio = (num_cases as f64) / (total_cases as f64);
+        let thresholds = vec![0.7, 0.8, 0.9, 0.95];
+
+        for threshold in &thresholds {
+            if case_completion_ratio > *threshold {
+                self.learning_rate *= (1.0 - ((*threshold as f64) / 4.0));
+            }
+        }
+
         if self.learning_rate != old_learning_rate {
             println!("- - - - - - - - - - - - - - - -");
-            println!("Updating learning rate to {}!", self.learning_rate);
+            println!("Updating learning rate to {:.4}!", self.learning_rate);
             println!("- - - - - - - - - - - - - - - -");
         }
     }
@@ -176,13 +188,15 @@ impl<T> Model<T> where
             // Calculate and Report Cross Entropy Loss for minibatch
             cross_entropy = self.calc_cross_entropy(&last_output, &minibatch.target, batch_size);
             // training_set_avg_CE = training_set_avg_CE + (cross_entropy - training_set_avg_CE) / training_cases as f64;
-            println!("  Cross Entropy at {} cases: {:.3} with accuracy: {:.2}%", training_cases, cross_entropy, (-cross_entropy).exp() * 100f64);
+            if training_cases % 10_000 == 0 {
+                println!("  Cross Entropy at {} cases: {:.3} with accuracy: {:.2}%", training_cases, cross_entropy, (-cross_entropy).exp() * 100f64);
+            }
 
             recent_batches_CE.push(cross_entropy);
 
-            if recent_batches_CE.len() == 10 {
+            if recent_batches_CE.len() > 10 {
                 let summed_entropy: f64 = recent_batches_CE.iter().map(|x| (-x).exp()).sum();
-                self.update_learning_rate(summed_entropy / 10f64);
+                //self.update_learning_rate(summed_entropy / recent_batches_CE.len() as f64, training_cases, total_training_cases);
                 recent_batches_CE.clear();
             }
 
