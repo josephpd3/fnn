@@ -206,13 +206,12 @@ fn main() {
         mnist_vec.push(record);
     }
 
-    let mnist = MNISTDataSet::new(mnist_vec, 60_000usize, 5_000usize, 5_000usize);
+    let mnist = MNISTDataSet::new(mnist_vec, 60_000usize, 9_900usize, 100usize);
     println!("Done!");
 
     let mut model = Model::new(mnist);
 
-    //model.add(Layer::FullyConnected{ num_neurons: 784 });
-    model.add(Layer::FullyConnected{ num_neurons: 100 });
+    model.add(Layer::FullyConnected{ num_neurons: 80 });
     model.add(Layer::Softmax{ num_classes: 10 });
 
     let batch_size = 100;

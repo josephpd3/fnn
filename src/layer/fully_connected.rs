@@ -51,18 +51,12 @@ impl Layer for FullyConnectedLayer {
     fn forward_prop(&mut self, input: &Matrix, batch_size: usize) -> ForwardPropResult {
         let sigmoid = |z: f64| 1f64 / (1f64 + (1f64 / z.exp()));
 
-        self.last_input = Some(input.explicit_copy());
-
-        // println!("Weight matrix rows: {}", self.weights.data.len());
-        // println!("Weight matrix cols: {}", self.weights.data[0].len());
-
-        // println!("Input matrix rows: {}", input.data.len());
-        // println!("Input matrix cols: {}", input.data[0].len());
+        self.last_input = Some(input.explicit_copy()); // Store most recent input for backprop
 
         let to_activate = &(&self.weights.transpose() * input) + &self.get_batch_size_biases(batch_size);
         let output = to_activate.mat_map(sigmoid);
 
-        self.last_output = Some(output.explicit_copy());
+        self.last_output = Some(output.explicit_copy()); // Store most recent output for backprop
 
         Ok(output)
     }

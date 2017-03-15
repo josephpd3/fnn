@@ -109,14 +109,14 @@ impl<T> Model<T> where
         }
 
         // Run Test Set
-        println!("Running Test...");
-        let test_batch = self.dataset.get_test_set();
-        let mut last_test_output = test_batch.input;
-        for layer in &mut self.layers {
-            last_test_output = layer.forward_prop(&last_test_output, test_batch.size)?;
-        }
-        let test_CE = self.calc_cross_entropy(&last_test_output, &test_batch.target, test_batch.size);
-        println!("  Cross Entropy on Test Set: {:.3}\n  Accuracy: {:.2}%", test_CE, (-test_CE).exp() * 100f64);
+        // println!("Running Test...");
+        // let test_batch = self.dataset.get_test_set();
+        // let mut last_test_output = test_batch.input;
+        // for layer in &mut self.layers {
+        //     last_test_output = layer.forward_prop(&last_test_output, test_batch.size)?;
+        // }
+        // let test_CE = self.calc_cross_entropy(&last_test_output, &test_batch.target, test_batch.size);
+        // println!("  Cross Entropy on Test Set: {:.3}\n  Accuracy: {:.2}%", test_CE, (-test_CE).exp() * 100f64);
 
         Ok(())
     }
@@ -133,32 +133,25 @@ impl<T> Model<T> where
         let old_learning_rate = self.learning_rate;
 
         self.learning_rate = match (avg_acc * 100f64) as u8 {
-            1...11 => self.learning_rate,
-            11...21 => 0.080,
-            21...41 => 0.060,
-            41...56 => 0.030,
-            56...66 => 0.010,
-            71...76 => 0.0025,
-            76...86 => 0.0020,
-            86...91 => 0.0010,
-            91...100 => 0.0005,
+            1...91 => self.learning_rate,
+            91...100 => 0.45,
             _ => { self.learning_rate }
         };
 
-        let case_completion_ratio = (num_cases as f64) / (total_cases as f64);
-        let thresholds = vec![0.7, 0.8, 0.9, 0.95];
+        // let case_completion_ratio = (num_cases as f64) / (total_cases as f64);
+        // let thresholds = vec![0.7, 0.8, 0.9, 0.95];
 
-        for threshold in &thresholds {
-            if case_completion_ratio > *threshold {
-                self.learning_rate *= (1.0 - ((*threshold as f64) / 4.0));
-            }
-        }
+        // for threshold in &thresholds {
+        //     if case_completion_ratio > *threshold {
+        //         self.learning_rate *= (1.0 - ((*threshold as f64) / 4.0));
+        //     }
+        // }
 
-        if self.learning_rate != old_learning_rate {
-            println!("- - - - - - - - - - - - - - - -");
-            println!("Updating learning rate to {:.4}!", self.learning_rate);
-            println!("- - - - - - - - - - - - - - - -");
-        }
+        // if self.learning_rate != old_learning_rate {
+        //     println!("- - - - - - - - - - - - - - - -");
+        //     println!("Updating learning rate to {:.4}!", self.learning_rate);
+        //     println!("- - - - - - - - - - - - - - - -");
+        // }
     }
 
     fn run_epoch(&mut self, batch_size: usize) -> EpochResult {
@@ -167,11 +160,7 @@ impl<T> Model<T> where
 
         let mut last_output: Matrix;
         let mut last_deriv: Matrix;
-
-        //let mut training_set_avg_CE = 0f64;
-        let mut cross_entropy: f64;
-
-        let mut recent_batches_CE: Vec<f64> = vec![];
+        let mut cross_entropy: f64 = 0.0;
 
         // Run Epoch
         println!("Training...");
@@ -187,17 +176,8 @@ impl<T> Model<T> where
 
             // Calculate and Report Cross Entropy Loss for minibatch
             cross_entropy = self.calc_cross_entropy(&last_output, &minibatch.target, batch_size);
-            // training_set_avg_CE = training_set_avg_CE + (cross_entropy - training_set_avg_CE) / training_cases as f64;
             if training_cases % 10_000 == 0 {
                 println!("  Cross Entropy at {} cases: {:.3} with accuracy: {:.2}%", training_cases, cross_entropy, (-cross_entropy).exp() * 100f64);
-            }
-
-            recent_batches_CE.push(cross_entropy);
-
-            if recent_batches_CE.len() > 10 {
-                let summed_entropy: f64 = recent_batches_CE.iter().map(|x| (-x).exp()).sum();
-                //self.update_learning_rate(summed_entropy / recent_batches_CE.len() as f64, training_cases, total_training_cases);
-                recent_batches_CE.clear();
             }
 
             // Propogate Backward
@@ -221,7 +201,7 @@ impl<T> Model<T> where
         // Replenish the stores!
         self.dataset.replenish_minibatches();
 
-        Ok(0.0f64)
+        Ok(cross_entropy)
     }
 
     pub fn evaluate(&self) {
@@ -229,8 +209,9 @@ impl<T> Model<T> where
     }
 
     fn calc_cross_entropy(&self, output: &Matrix, target: &Matrix, batch_size: usize) -> f64 {
+        // TODO: Make static method
         let log_output = output.mat_map(|x| x.ln());
-        let unsummed = target.ew_multiply(&log_output);
+        let unsummed = target.ew_multiply(&log_output); // Elementwise multiply
         let summed = unsummed.sum_rows().sum_cols();
         - (summed[0][0] / batch_size as f64)
     }
