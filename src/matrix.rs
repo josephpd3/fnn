@@ -247,8 +247,8 @@ impl Matrix {
     /// assert_eq!(after, Matrix::new(2, 2, &vec![2f64, 4f64,
     ///                                           6f64, 8f64]));
     /// ```
-    pub fn mat_map<F>(&self, f: F) -> Matrix
-        where F: Fn(f64) -> f64 
+    pub fn mat_map<F>(&self, mut f: F) -> Matrix
+        where F: FnMut (f64) -> f64 
     {
         let mut outer = vec![];
 
@@ -487,6 +487,60 @@ impl Matrix {
             cols: self.cols,
             data: vec![inner]
         }
+    }
+
+    pub fn restrict_row_norm(&self, scalar: f64) -> Matrix {
+        let mut outer = vec![];
+
+        for row in 0..self.rows {
+            let mut inner = vec![];
+
+            let mut summed: f64 = 0.0;
+            for idx in 0..self.cols {
+                summed += self[row][idx].powi(2);
+            }
+
+            for idx in 0..self.cols {
+                inner.push(scalar * self[row][idx] / summed.sqrt());
+            }
+
+            outer.push(inner);
+        }
+
+        Matrix {
+            rows: self.rows,
+            cols: self.cols,
+            data: outer
+        }
+    }
+
+    pub fn restrict_col_norm(&self, scalar: f64) -> Matrix {
+        let transposed = self.explicit_copy().transpose();
+
+        let mut outer = vec![];
+
+        for row in 0..transposed.rows {
+            let mut inner = vec![];
+
+            let mut summed: f64 = 0.0;
+            for idx in 0..transposed.cols {
+                summed += transposed[row][idx].powi(2);
+            }
+
+            for idx in 0..transposed.cols {
+                inner.push(scalar * transposed[row][idx] / summed.sqrt());
+            }
+
+            outer.push(inner);
+        }
+
+        let restricted = Matrix {
+            rows: transposed.rows,
+            cols: transposed.cols,
+            data: outer
+        };
+
+        restricted.transpose()
     }
 
 }

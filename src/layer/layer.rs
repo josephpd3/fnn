@@ -48,7 +48,7 @@ pub type BiasUpdateResult = result::Result<(), Error>;
 
 pub trait Layer {
     /// Propagates input forward through the layer to produce an output Matrix
-    fn forward_prop(&mut self, input: &Matrix, batch_size: usize) -> ForwardPropResult;
+    fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> ForwardPropResult;
 
     /// Propoagates a given derivative backward through the layer,
     /// updating the weights and biases within and producing a

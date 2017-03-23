@@ -3,7 +3,13 @@ use std::fmt;
 use std::error::Error as StdError;
 use std::result;
 
-use layer::{Layer, FNNLayer, FullyConnectedLayer, SoftmaxLayer};
+use layer::{
+    Layer,
+    FNNLayer,
+    DropoutLayer,
+    FullyConnectedLayer,
+    SoftmaxLayer
+};
 use layer::Error as LayerError;
 use dataset::DataSet;
 use matrix::Matrix;
@@ -63,7 +69,7 @@ impl<T> Model<T> where
         Model {
             dataset: dataset,
             layers: vec![],
-            learning_rate: 0.1f64
+            learning_rate: 0.5
         }
     }
 
@@ -89,6 +95,9 @@ impl<T> Model<T> where
             },
             FNNLayer::Softmax{ num_classes } => {
                 self.layers.push(Box::new(SoftmaxLayer::new(input_len, num_classes)));
+            },
+            FNNLayer::Dropout{ rate } => {
+                self.layers.push(Box::new(DropoutLayer::new(input_len, rate)));
             }
         }
     }
@@ -101,22 +110,12 @@ impl<T> Model<T> where
         let layer_output: Matrix;
         let batch_size = 100usize;
         let mut avg_CE: f64;
+        let mut last_valid_CE: f64 = 1000.0;
 
         for epoch in 0..num_epochs {
-            self.run_epoch(batch_size)?;
-            //println!("Average Cross Entropy for Epoch {}: {}", epoch + 1usize, avg_CE);
+            last_valid_CE = self.run_epoch(batch_size, last_valid_CE)?;
             println!("Done with Epoch {}!", epoch + 1usize);
         }
-
-        // Run Test Set
-        // println!("Running Test...");
-        // let test_batch = self.dataset.get_test_set();
-        // let mut last_test_output = test_batch.input;
-        // for layer in &mut self.layers {
-        //     last_test_output = layer.forward_prop(&last_test_output, test_batch.size)?;
-        // }
-        // let test_CE = self.calc_cross_entropy(&last_test_output, &test_batch.target, test_batch.size);
-        // println!("  Cross Entropy on Test Set: {:.3}\n  Accuracy: {:.2}%", test_CE, (-test_CE).exp() * 100f64);
 
         Ok(())
     }
@@ -137,30 +136,20 @@ impl<T> Model<T> where
             91...100 => 0.45,
             _ => { self.learning_rate }
         };
-
-        // let case_completion_ratio = (num_cases as f64) / (total_cases as f64);
-        // let thresholds = vec![0.7, 0.8, 0.9, 0.95];
-
-        // for threshold in &thresholds {
-        //     if case_completion_ratio > *threshold {
-        //         self.learning_rate *= (1.0 - ((*threshold as f64) / 4.0));
-        //     }
-        // }
-
-        // if self.learning_rate != old_learning_rate {
-        //     println!("- - - - - - - - - - - - - - - -");
-        //     println!("Updating learning rate to {:.4}!", self.learning_rate);
-        //     println!("- - - - - - - - - - - - - - - -");
-        // }
     }
 
-    fn run_epoch(&mut self, batch_size: usize) -> EpochResult {
+    fn run_epoch(&mut self, batch_size: usize, last_validation_CE: f64) -> EpochResult {
         let mut training_cases = 0usize;
         let total_training_cases = self.dataset.get_training_set_size();
 
         let mut last_output: Matrix;
         let mut last_deriv: Matrix;
+
         let mut cross_entropy: f64 = 0.0;
+        let mut agg_cross_entropy: f64 = 0.0;
+        let mut avg_cross_entropy: f64 = 0.0;
+
+        let mut is_training: bool = true;
 
         // Run Epoch
         println!("Training...");
@@ -171,13 +160,16 @@ impl<T> Model<T> where
             // Propogate Forward
             last_output = minibatch.input;
             for layer in &mut self.layers {
-                last_output = layer.forward_prop(&last_output, batch_size)?;
+                last_output = layer.forward_prop(&last_output, batch_size, is_training)?;
             }
 
             // Calculate and Report Cross Entropy Loss for minibatch
             cross_entropy = self.calc_cross_entropy(&last_output, &minibatch.target, batch_size);
+            agg_cross_entropy += cross_entropy;
+            avg_cross_entropy = agg_cross_entropy / (training_cases / batch_size) as f64;
+
             if training_cases % 10_000 == 0 {
-                println!("  Cross Entropy at {} cases: {:.3} with accuracy: {:.2}%", training_cases, cross_entropy, (-cross_entropy).exp() * 100f64);
+                println!("  Cross Entropy at {} cases: {:.3}; Average accuracy: {:.2}%", training_cases, avg_cross_entropy, (-avg_cross_entropy).exp() * 100f64);
             }
 
             // Propogate Backward
@@ -188,20 +180,26 @@ impl<T> Model<T> where
             }
         }
 
+        is_training = false;
+
         // Validate Epoch
         println!("Running Validation for Epoch...");
         let validation_batch = self.dataset.get_validation_set();
         let mut last_validation_output = validation_batch.input;
         for layer in &mut self.layers {
-            last_validation_output = layer.forward_prop(&last_validation_output, validation_batch.size)?;
+            last_validation_output = layer.forward_prop(&last_validation_output, validation_batch.size, is_training)?;
         }
         let validation_CE = self.calc_cross_entropy(&last_validation_output, &validation_batch.target, validation_batch.size);
         println!("  Cross Entropy on Validation Set: {:.3}\n  Accuracy: {:.2}%", validation_CE, (-validation_CE).exp() * 100f64);
 
+        if validation_CE > last_validation_CE {
+            self.learning_rate = self.learning_rate * 0.5;
+        }
+
         // Replenish the stores!
         self.dataset.replenish_minibatches();
 
-        Ok(cross_entropy)
+        Ok(validation_CE)
     }
 
     pub fn evaluate(&self) {

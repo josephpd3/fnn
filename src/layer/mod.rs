@@ -1,10 +1,12 @@
 pub use self::layer::*;
 pub use self::fully_connected::*;
 pub use self::softmax::*;
+pub use self::dropout::*;
 
 pub mod layer;
 pub mod fully_connected;
 pub mod softmax;
+pub mod dropout;
 
 
 /// This enum allows the user to add layers to the network
@@ -20,5 +22,8 @@ pub enum FNNLayer {
     },
     Softmax {
         num_classes: usize
+    },
+    Dropout {
+        rate: f64
     }
 }

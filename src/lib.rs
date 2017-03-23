@@ -3,6 +3,7 @@
 #[macro_use]
 
 extern crate rand;
+extern crate statrs;
 
 pub mod layer;
 pub mod matrix;

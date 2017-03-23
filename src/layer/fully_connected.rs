@@ -48,7 +48,7 @@ impl FullyConnectedLayer {
 #[allow(non_snake_case)] // For derivative variable names...
 impl Layer for FullyConnectedLayer {
 
-    fn forward_prop(&mut self, input: &Matrix, batch_size: usize) -> ForwardPropResult {
+    fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> ForwardPropResult {
         let sigmoid = |z: f64| 1f64 / (1f64 + (1f64 / z.exp()));
 
         self.last_input = Some(input.explicit_copy()); // Store most recent input for backprop
@@ -81,7 +81,7 @@ impl Layer for FullyConnectedLayer {
 
     fn update_weights(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> WeightUpdateResult {
         let weights_delta: Matrix;
-        let momentum = 0.9f64;
+        let momentum = 0.95f64;
 
         // Consumes the last update if it took place
         match self.last_weight_update.take() {
@@ -94,6 +94,7 @@ impl Layer for FullyConnectedLayer {
         }
 
         self.weights = &self.weights - &(weights_delta.mat_map(|x| x * learning_rate));
+        //self.weights = self.weights.restrict_col_norm(2.0);
         self.last_weight_update = Some(weights_delta);
         Ok(())
     }
@@ -113,6 +114,7 @@ impl Layer for FullyConnectedLayer {
         }
 
         self.biases = &self.biases - &(bias_delta.mat_map(|x| x * learning_rate));
+        //self.biases = self.biases.restrict_col_norm(2.0);
         self.last_bias_update = Some(bias_delta);
         Ok(())
     }

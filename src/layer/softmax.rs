@@ -45,7 +45,7 @@ impl SoftmaxLayer {
 #[allow(non_snake_case)] // For derivative variable names...
 impl Layer for SoftmaxLayer {
 
-    fn forward_prop(&mut self, input: &Matrix, batch_size: usize) -> ForwardPropResult {
+    fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> ForwardPropResult {
         self.last_input = Some(input.explicit_copy());
 
         let to_activate = &(&self.weights.transpose() * input) + &self.get_batch_size_biases(batch_size);
@@ -102,6 +102,7 @@ impl Layer for SoftmaxLayer {
         }
 
         self.weights = &self.weights - &(weights_delta.mat_map(|x| x * learning_rate));
+        //self.weights = self.weights.restrict_col_norm(2.0);
         self.last_weight_update = Some(weights_delta);
         Ok(())
     }
@@ -121,6 +122,7 @@ impl Layer for SoftmaxLayer {
         }
 
         self.biases = &self.biases - &(bias_delta.mat_map(|x| x * learning_rate));
+        //self.biases = self.biases.restrict_col_norm(2.0);
         self.last_bias_update = Some(bias_delta);
         Ok(())
     }

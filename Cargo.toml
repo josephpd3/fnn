@@ -7,3 +7,4 @@ authors = ["Joseph P DeBartola III <josephdebartola@gmail.com>"]
 csv = "*"
 rustc-serialize = "*"
 rand = "*"
+statrs = "*"

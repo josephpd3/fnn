@@ -1,11 +1,13 @@
 extern crate csv;
 extern crate rand;
 extern crate rustc_serialize;
+extern crate statrs;
 
 #[macro_use(matrix)]
 extern crate fnn;
 
 use csv::Reader;
+
 use fnn::matrix::Matrix;
 use fnn::dataset::Batch;
 
@@ -211,11 +213,15 @@ fn main() {
 
     let mut model = Model::new(mnist);
 
-    model.add(Layer::FullyConnected{ num_neurons: 80 });
+    model.add(Layer::Dropout{ rate: 0.8 });
+    model.add(Layer::FullyConnected{ num_neurons: 512 });
+    model.add(Layer::Dropout{ rate: 0.5 });
+    model.add(Layer::FullyConnected{ num_neurons: 512 });
+    model.add(Layer::Dropout{ rate: 0.5 });
     model.add(Layer::Softmax{ num_classes: 10 });
 
     let batch_size = 100;
-    let num_epochs = 20;
+    let num_epochs = 50;
 
     match model.fit(batch_size, num_epochs) {
         Ok(()) => { println!("Done!"); },
