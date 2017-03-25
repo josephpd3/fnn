@@ -169,7 +169,7 @@ impl<T> Model<T> where
             avg_cross_entropy = agg_cross_entropy / (training_cases / batch_size) as f64;
 
             if training_cases % 10_000 == 0 {
-                println!("  Cross Entropy at {} cases: {:.3}; Average accuracy: {:.2}%", training_cases, avg_cross_entropy, (-avg_cross_entropy).exp() * 100f64);
+                println!("  Cross Entropy at {} cases: {:.5}; Average accuracy: {:.2}%", training_cases, avg_cross_entropy, (-avg_cross_entropy).exp() * 100f64);
             }
 
             // Propogate Backward
@@ -193,7 +193,7 @@ impl<T> Model<T> where
         println!("  Cross Entropy on Validation Set: {:.3}\n  Accuracy: {:.2}%", validation_CE, (-validation_CE).exp() * 100f64);
 
         if validation_CE > last_validation_CE {
-            self.learning_rate = self.learning_rate * 0.5;
+            self.learning_rate = (self.learning_rate * 0.5).min(0.01);
         }
 
         // Replenish the stores!
