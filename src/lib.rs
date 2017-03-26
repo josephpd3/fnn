@@ -7,13 +7,14 @@ extern crate statrs;
 
 pub mod layer;
 pub mod matrix;
-pub mod util;
 pub mod dataset;
 pub mod model;
+pub mod util;
 
 pub use dataset::DataSet;
 pub use model::Model;
 pub use layer::FNNLayer;
+pub use util::activation;
 
 #[cfg(test)]
 mod tests {
