@@ -69,7 +69,7 @@ impl<T> Model<T> where
         Model {
             dataset: dataset,
             layers: vec![],
-            learning_rate: 0.5
+            learning_rate: 0.1
         }
     }
 

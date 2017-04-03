@@ -215,9 +215,9 @@ fn main() {
 
     model.add(Layer::Dropout{ rate: 0.8 });
     model.add(Layer::FullyConnected{ num_neurons: 512 });
-    model.add(Layer::Dropout{ rate: 0.5 });
+    model.add(Layer::Dropout{ rate: 0.8 });
     model.add(Layer::FullyConnected{ num_neurons: 512 });
-    model.add(Layer::Dropout{ rate: 0.5 });
+    model.add(Layer::Dropout{ rate: 0.8 });
     model.add(Layer::Softmax{ num_classes: 10 });
 
     let batch_size = 100;
