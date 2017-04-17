@@ -4,13 +4,19 @@ pub trait Loss {
     fn calculate_loss(&self, output: &Matrix, target: &Matrix, batch_size: usize) -> f64;
 
     fn get_bp_deriv(&self, output: &Matrix, target: &Matrix) -> Matrix;
+
+    fn get_name(&self) -> &'static str;
 }
 
-pub struct CrossEntropy { }
+pub struct CrossEntropy {
+    name: &'static str
+}
 
 impl CrossEntropy {
     fn new() -> Self {
-        CrossEntropy {}
+        CrossEntropy {
+            name: "Categorical Cross Entropy"
+        }
     }
 }
 
@@ -24,5 +30,9 @@ impl Loss for CrossEntropy {
 
     fn get_bp_deriv(&self, output: &Matrix, target: &Matrix) -> Matrix {
         target.ew_multiply(&output.mat_map(|x| -x))
+    }
+
+    fn get_name(&self) -> &'static str {
+        self.name
     }
 }
