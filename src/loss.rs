@@ -8,6 +8,10 @@ pub trait Loss {
     fn get_name(&self) -> &'static str;
 }
 
+pub enum FNNLoss {
+    CrossEntropy
+}
+
 pub struct CrossEntropy {
     name: &'static str
 }

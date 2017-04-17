@@ -28,7 +28,7 @@ impl StdError for Error {
     }
 }
 
-pub type LayerUpdateResult = result::Result<Matrix, Error>;
+pub type LayerUpdateResult = result::Result<(), Error>;
 
 pub trait CombinatoryLayer {
 

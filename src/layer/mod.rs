@@ -12,6 +12,7 @@ pub mod layer;
 pub mod fully_connected;
 pub mod softmax;
 pub mod dropout;
+pub mod dense;
 
 // Newer layer abstractions
 pub mod base_layer;

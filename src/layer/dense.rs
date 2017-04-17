@@ -1,14 +1,22 @@
 use layer::layer::*;
 use matrix::Matrix;
+use optimizer::Optimizer;
+use layer::base_layer::{
+    BaseLayer,
+    PropagationResult
+};
+use layer::combinatory_layer::{
+    CombinatoryLayer,
+    LayerUpdateResult
+};
 
 /// A Neural Network layer modeled after classic hidden layer model
 /// of a single dimensional row of neurons with a simple activation function
 /// which, for now, is limited to the sigmoid function.
 pub struct DenseLayer {
     weights: Matrix,
-    last_weight_update: Option<Matrix>,
     biases: Matrix,
-    last_bias_update: Option<Matrix>,
+    optimizer: Box<Optimizer>,
     last_input: Option<Matrix>,
     last_output: Option<Matrix>,
     input_len: usize,
@@ -17,15 +25,14 @@ pub struct DenseLayer {
 
 impl DenseLayer {
 
-    pub fn new(input_len: usize, num_neurons: usize, activation: Fn(f64) -> f64) -> Self {
+    pub fn new(input_len: usize, num_neurons: usize, optimizer: Box<Optimizer>) -> Self {
         let initial_weights = Matrix::gaussian(input_len, num_neurons);
         let initial_biases = Matrix::gaussian(num_neurons, 1);
 
         DenseLayer {
             weights: initial_weights,
-            last_weight_update: None,
             biases: initial_biases,
-            last_bias_update: None,
+            optimizer: optimizer,
             last_input: None,
             last_output: None,
             input_len: input_len,
@@ -48,7 +55,7 @@ impl DenseLayer {
 #[allow(non_snake_case)] // For derivative variable names...
 impl BaseLayer for DenseLayer {
 
-    fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> ForwardPropResult {
+    fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> PropagationResult {
         self.last_input = Some(input.explicit_copy()); // Store most recent input for backprop
 
         let output = &(&self.weights.transpose() * input) + &self.get_batch_size_biases(batch_size);
@@ -58,15 +65,14 @@ impl BaseLayer for DenseLayer {
         Ok(output)
     }
 
-    fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> BackPropResult {
+    fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> PropagationResult {
         // Consume the existing matrices inside the Option<> and replace them with None.
         // Rightuflly panics if a forward_prop wasn't performed, saving the last input
         // and output
         let last_input_ref = &self.last_input.take().unwrap();
-        let last_output_ref = &self.last_output.take().unwrap();
+        //let last_output_ref = &self.last_output.take().unwrap();
+        let dE_dz = bp_deriv;
 
-        let dy_dz = last_output_ref.ew_multiply(&last_output_ref.mat_map(|y| 1.0f64 - y));
-        let dE_dz = bp_deriv.ew_multiply(&dy_dz);
         let dE_dw = last_input_ref * &dE_dz.transpose();
         let dE_dx = &self.weights * &dE_dz;
 
@@ -84,7 +90,7 @@ impl BaseLayer for DenseLayer {
 #[allow(non_snake_case)] // For derivative variable names...
 impl CombinatoryLayer for DenseLayer {
 
-    fn update_weights(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> WeightUpdateResult {
+    fn update_weights(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> LayerUpdateResult {
         let weights_delta: Matrix;
         let momentum = 0.95f64;
 
@@ -104,7 +110,7 @@ impl CombinatoryLayer for DenseLayer {
         Ok(())
     }
 
-    fn update_biases(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult {
+    fn update_biases(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> LayerUpdateResult {
         let bias_delta: Matrix;
         let momentum = 0.9f64;
 
