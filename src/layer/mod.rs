@@ -3,10 +3,20 @@ pub use self::fully_connected::*;
 pub use self::softmax::*;
 pub use self::dropout::*;
 
+// Newer layer abstractions
+pub use self::base_layer::BaseLayer;
+pub use self::combinatory_layer::CombinatoryLayer;
+pub use self::activation_layer::ActivationLayer;
+
 pub mod layer;
 pub mod fully_connected;
 pub mod softmax;
 pub mod dropout;
+
+// Newer layer abstractions
+pub mod base_layer;
+pub mod combinatory_layer;
+pub mod activation_layer;
 
 
 /// This enum allows the user to add layers to the network

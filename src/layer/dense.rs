@@ -12,8 +12,7 @@ pub struct DenseLayer {
     last_input: Option<Matrix>,
     last_output: Option<Matrix>,
     input_len: usize,
-    output_len: usize,
-    activation_function: Fn(f64) -> f64
+    output_len: usize
 }
 
 impl DenseLayer {
@@ -30,8 +29,7 @@ impl DenseLayer {
             last_input: None,
             last_output: None,
             input_len: input_len,
-            output_len: num_neurons,
-            activation_function: activation
+            output_len: num_neurons
         }
     }
 
@@ -48,13 +46,12 @@ impl DenseLayer {
 }
 
 #[allow(non_snake_case)] // For derivative variable names...
-impl Layer for DenseLayer {
+impl BaseLayer for DenseLayer {
 
     fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> ForwardPropResult {
         self.last_input = Some(input.explicit_copy()); // Store most recent input for backprop
 
-        let to_activate = &(&self.weights.transpose() * input) + &self.get_batch_size_biases(batch_size);
-        let output = to_activate.mat_map(self.activation_function);
+        let output = &(&self.weights.transpose() * input) + &self.get_batch_size_biases(batch_size);
 
         self.last_output = Some(output.explicit_copy()); // Store most recent output for backprop
 
@@ -78,6 +75,14 @@ impl Layer for DenseLayer {
 
         Ok(dE_dx)
     }
+
+    fn get_output_len(&self) -> usize {
+        self.output_len
+    }
+}
+
+#[allow(non_snake_case)] // For derivative variable names...
+impl CombinatoryLayer for DenseLayer {
 
     fn update_weights(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> WeightUpdateResult {
         let weights_delta: Matrix;
@@ -119,7 +124,4 @@ impl Layer for DenseLayer {
         Ok(())
     }
 
-    fn get_output_len(&self) -> usize {
-        self.output_len
-    }
 }

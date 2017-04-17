@@ -9,6 +9,8 @@ pub mod layer;
 pub mod matrix;
 pub mod dataset;
 pub mod model;
+pub mod loss;
+pub mod optimizer;
 pub mod util;
 
 pub use dataset::DataSet;
