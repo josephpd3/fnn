@@ -3,32 +3,41 @@ use std::error::Error as StdError;
 use std::result;
 
 use matrix::Matrix;
+use layer::base_layer::PropagationError;
+
+// NEW ERROR HANDLING
 
 #[derive(Debug)]
-pub enum Error {
-    WeightUpdateFailure,
-    BiasUpdateFailure
+pub enum LayerUpdateError {
+    Weights,
+    Biases
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for LayerUpdateError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Error::WeightUpdateFailure => f.write_str("Error updating Weights in Layer"),
-            Error::BiasUpdateFailure => f.write_str("Error updating Biases in Layer")
+            LayerUpdateError::Weights => f.write_str("Error updating Weights in Layer"),
+            LayerUpdateError::Biases => f.write_str("Error updating Biases in Layer")
         }
     }
 }
 
-impl StdError for Error {
+impl StdError for LayerUpdateError {
     fn description(&self) -> &str {
         match *self {
-            Error::WeightUpdateFailure => "Error updating Weights in Layer",
-            Error::BiasUpdateFailure => "Error updating Biases in Layer"
+            LayerUpdateError::Weights => "Error updating Weights in Layer",
+            LayerUpdateError::Biases => "Error updating Biases in Layer"
         }
     }
 }
 
-pub type LayerUpdateResult = result::Result<(), Error>;
+impl From<LayerUpdateError> for PropagationError {
+    fn from(err: LayerUpdateError) -> PropagationError {
+        PropagationError::Backward(Box::new(err))
+    }
+}
+
+pub type LayerUpdateResult = result::Result<(), LayerUpdateError>;
 
 pub trait CombinatoryLayer {
 

@@ -1,6 +1,6 @@
 [package]
 name = "fnn"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joseph P DeBartola III <josephdebartola@gmail.com>"]
 
 [dependencies]
@@ -8,3 +8,4 @@ csv = "*"
 rustc-serialize = "*"
 rand = "*"
 statrs = "*"
+rayon = "*"

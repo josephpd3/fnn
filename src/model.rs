@@ -1,179 +1,215 @@
-use std::convert::From;
-use std::fmt;
-use std::error::Error as StdError;
 use std::result;
+use std::f64;
 
-use layer::{
-    Layer,
-    FNNLayer,
-    DropoutLayer,
-    FullyConnectedLayer,
-    SoftmaxLayer
-};
-use layer::Error as LayerError;
 use dataset::DataSet;
 use matrix::Matrix;
 
-#[derive(Debug)]
-/// Error representing a failure on the Model level
-///
-/// TODO: Implement [cause](https://doc.rust-lang.org/std/error/trait.Error.html) and ditch this lame `enum` format.
-/// 
-pub enum Error {
-    LossFunctionFailure,
-    EpochFailure,
-    FittingFailure
-}
+use loss::FNNLoss;
+use optimizer::FNNOptimizer;
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::LossFunctionFailure => f.write_str("Error Running Loss Function on Output"),
-            Error::EpochFailure => f.write_str("Error Running Epoch: Epoch Fail!"),
-            Error::FittingFailure => f.write_str("Error Fitting the Model")
-        }
-    }
-}
+use layer::{
+    BaseLayer,
+    Layer,
+    Activation,
+    Combination,
+    Utility,
+    SoftmaxLayer,
+    SigmoidLayer,
+    DenseLayer,
+    DropoutLayer
+};
+use layer::base_layer::PropagationError;
 
-impl StdError for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::LossFunctionFailure => "Error Running Loss Function on Output",
-            Error::EpochFailure => "Error Running Epoch: Epoch Fail!",
-            Error::FittingFailure => "Error Fitting the Model"
-        }
-    }
-}
+use loss::{
+    Loss,
+    CrossEntropy
+};
 
-impl From<LayerError> for Error {
-    fn from(err: LayerError) -> Error {
-        Error::EpochFailure // Epic Fail!
-    }
-}
+use optimizer::{
+    Optimizer,
+    Momentum,
+    NaiveMomentum,
+    RMSProp
+};
+
+//#[macro_export]
+// macro_rules! model {
+//     (dataset:$ds:ident,
+//      loss_function:$loss:item,
+//      optimizer:$opt:item,
+//      learning_rate:$lrate:item) => {{
+//         Model::new(ModelDescription::New(
+//             dataset: $ds,
+//             loss_function: $loss,
+//             optimizer: $opt,
+//             learning_rate: $lrate
+//         ))
+//     }};
+// }
 
 pub struct Model<T> {
     pub dataset: T,
-    pub layers: Vec<Box<Layer>>,
+    pub layers: Vec<Box<BaseLayer>>,
+    pub loss: Box<Loss>,
+    pub optimizer: FNNOptimizer,
     pub learning_rate: f64
 }
 
-pub type LossFunctionResult = result::Result<Matrix, Error>;
-pub type EpochResult = result::Result<f64, Error>;
-pub type FittingReult = result::Result<(), Error>;
+/// Enum providing a kwarg-like interface for initializing a Model
+/// with more explicitly delineated arguments
+pub enum ModelDescription<T> {
+    New {
+        dataset: T,
+        loss_function: FNNLoss,
+        optimizer: FNNOptimizer,
+        learning_rate: f64
+    }
+}
 
-#[allow(non_snake_case)] // For derivative variable names...
+pub type EpochResult = result::Result<f64, PropagationError>;
+
 impl<T> Model<T> where
     T: DataSet
 {
-    pub fn new(dataset: T) -> Model<T> {
-        Model {
-            dataset: dataset,
-            layers: vec![],
-            learning_rate: 0.1
+    pub fn new(desc: ModelDescription<T>) -> Model<T> {
+        match desc {
+            ModelDescription::New{
+                dataset,
+                loss_function,
+                optimizer,
+                learning_rate
+            } => {
+                let loss = match loss_function {
+                    FNNLoss::CrossEntropy => {
+                        Box::new(CrossEntropy::new())
+                    }
+                };
+
+                Model {
+                    dataset: dataset,
+                    layers: vec![],
+                    learning_rate: learning_rate,
+                    loss: loss,
+                    optimizer: optimizer
+                }
+            }
         }
     }
 
-    pub fn add(&mut self, layer: FNNLayer) {
+    fn get_optimizer_instance(&self) -> Box<Optimizer> {
+        match self.optimizer {
+            FNNOptimizer::Momentum{ mu } => {
+                Box::new(Momentum::new(mu))
+            },
+            FNNOptimizer::NaiveMomentum{ mu } => {
+                Box::new(NaiveMomentum::new(mu))
+            }
+            FNNOptimizer::RMSProp{ decay_rate, epsilon } => {
+                Box::new(RMSProp::new(decay_rate, epsilon))
+            }
+        }
+    }
+
+    pub fn add(&mut self, layer: Layer) {
         let input_len: usize;
 
         match self.layers.last() {
-            // If there are already layers in the model, base dimensionality of the
-            // added layer on the output dimensionality of the last one
             Some(boxed_layer) => {
                 input_len = boxed_layer.as_ref().get_output_len();
             },
-            // ...otherwise, base the dimensionality of the added layer off of the
-            // dimensionality of the network's input data
             None => {
                 input_len = self.dataset.get_num_inputs();
             }
         }
 
         match layer {
-            FNNLayer::FullyConnected{ num_neurons } => {
-                self.layers.push(Box::new(FullyConnectedLayer::new(input_len, num_neurons)));
+            Layer::Activation(act) => match act {
+                Activation::Sigmoid => {
+                    self.layers.push(Box::new(SigmoidLayer::new(
+                        input_len
+                    )));
+                },
+                Activation::Softmax => {
+                    self.layers.push(Box::new(SoftmaxLayer::new(
+                        input_len
+                    )));
+                }
             },
-            FNNLayer::Softmax{ num_classes } => {
-                self.layers.push(Box::new(SoftmaxLayer::new(input_len, num_classes)));
+            Layer::Combination(combo) => match combo {
+                Combination::Dense{ num_neurons } => {
+                    // Generate an optimizer to pass into the layer
+                    let weight_opt = self.get_optimizer_instance();
+                    let bias_opt = self.get_optimizer_instance();
+                    self.layers.push(Box::new(DenseLayer::new(
+                        input_len,
+                        num_neurons,
+                        weight_opt,
+                        bias_opt
+                    )));
+                }
             },
-            FNNLayer::Dropout{ rate } => {
-                self.layers.push(Box::new(DropoutLayer::new(input_len, rate)));
+            Layer::Utility(util) => match util {
+                Utility::Dropout{ rate } => {
+                    self.layers.push(Box::new(DropoutLayer::new(input_len, rate)));
+                }
             }
         }
     }
 
-    pub fn compile(&mut self) {
-        // TODO
-    }
-
-    pub fn fit(&mut self, batch_size: usize, num_epochs: usize) -> FittingReult {
-        let layer_output: Matrix;
-        let batch_size = 100usize;
-        let mut avg_CE: f64;
-        let mut last_valid_CE: f64 = 1000.0;
+    pub fn fit(&mut self, batch_size: usize, num_epochs: usize) {
+        let mut last_loss = f64::NAN;
 
         for epoch in 0..num_epochs {
-            last_valid_CE = self.run_epoch(batch_size, last_valid_CE)?;
-            println!("Done with Epoch {}!", epoch + 1usize);
+            println!("Starting Epoch {}!", epoch + 1);
+            match self.run_epoch(batch_size) {
+                Ok(loss) => {
+                    if last_loss.is_nan() {
+                        last_loss = loss;
+                    } else if last_loss < loss {
+                        self.learning_rate = self.learning_rate * 0.9;
+                    }
+                },
+                _ => {}
+            }
+            self.dataset.replenish_minibatches();
         }
-
-        Ok(())
     }
 
-    fn validate(&mut self) {
-        // TODO
-    }
-
-    fn test(&mut self) {
-        // TODO
-    }
-
-    fn update_learning_rate(&mut self, avg_acc: f64, num_cases: usize, total_cases: usize) {
-        let old_learning_rate = self.learning_rate;
-
-        self.learning_rate = match (avg_acc * 100f64) as u8 {
-            1...91 => self.learning_rate,
-            91...100 => 0.45,
-            _ => { self.learning_rate }
-        };
-    }
-
-    fn run_epoch(&mut self, batch_size: usize, last_validation_CE: f64) -> EpochResult {
-        let mut training_cases = 0usize;
+    fn run_epoch(&mut self, batch_size: usize) -> EpochResult {
+        let mut training_cases = 0;
         let total_training_cases = self.dataset.get_training_set_size();
 
         let mut last_output: Matrix;
         let mut last_deriv: Matrix;
 
-        let mut cross_entropy: f64 = 0.0;
-        let mut agg_cross_entropy: f64 = 0.0;
-        let mut avg_cross_entropy: f64 = 0.0;
+        let mut loss: f64 = 0.0;
+        let mut total_loss: f64 = 0.0;
+        let mut avg_loss: f64 = 0.0;
 
         let mut is_training: bool = true;
 
-        // Run Epoch
         println!("Training...");
         while training_cases < total_training_cases {
             let minibatch = self.dataset.get_random_minibatch(batch_size);
             training_cases += minibatch.size;
 
-            // Propogate Forward
+            // "Input Layer"
             last_output = minibatch.input;
+
+            // Iteration over all layers in forward order
             for layer in &mut self.layers {
                 last_output = layer.forward_prop(&last_output, batch_size, is_training)?;
             }
 
-            // Calculate and Report Cross Entropy Loss for minibatch
-            cross_entropy = self.calc_cross_entropy(&last_output, &minibatch.target, batch_size);
-            agg_cross_entropy += cross_entropy;
-            avg_cross_entropy = agg_cross_entropy / (training_cases / batch_size) as f64;
+            loss = self.loss.calculate_loss(&last_output, &minibatch.target, batch_size);
+            total_loss += loss;
+            avg_loss = total_loss / (training_cases / batch_size) as f64;
 
-            if training_cases % 10_000 == 0 {
-                println!("  Cross Entropy at {} cases: {:.5}; Average accuracy: {:.2}%", training_cases, avg_cross_entropy, (-avg_cross_entropy).exp() * 100f64);
+            if training_cases % 15_000 == 0 {
+                println!("  Average accuracy at {} cases: {:.2}%\n    Loss Factor: {}", training_cases, (-avg_loss).exp() * 100.0, avg_loss);
             }
 
-            // Propogate Backward
-            last_deriv = &last_output - &minibatch.target;
+            last_deriv = self.loss.get_bp_deriv(&last_output, &minibatch.target);
 
             for layer in self.layers.iter_mut().rev() {
                 last_deriv = layer.back_prop(&last_deriv, self.learning_rate, batch_size)?;
@@ -182,36 +218,18 @@ impl<T> Model<T> where
 
         is_training = false;
 
-        // Validate Epoch
         println!("Running Validation for Epoch...");
+
         let validation_batch = self.dataset.get_validation_set();
         let mut last_validation_output = validation_batch.input;
+
         for layer in &mut self.layers {
             last_validation_output = layer.forward_prop(&last_validation_output, validation_batch.size, is_training)?;
         }
-        let validation_CE = self.calc_cross_entropy(&last_validation_output, &validation_batch.target, validation_batch.size);
-        println!("  Cross Entropy on Validation Set: {:.3}\n  Accuracy: {:.2}%", validation_CE, (-validation_CE).exp() * 100f64);
 
-        if validation_CE > last_validation_CE {
-            self.learning_rate = (self.learning_rate * 0.5).min(0.01);
-        }
+        let validation_loss = self.loss.calculate_loss(&last_validation_output, &validation_batch.target, validation_batch.size);
 
-        // Replenish the stores!
-        self.dataset.replenish_minibatches();
-
-        Ok(validation_CE)
+        println!("  Accuracy on Validation Set: {:.2}%", (-validation_loss).exp() * 100.0);
+        Ok(validation_loss)
     }
-
-    pub fn evaluate(&self) {
-        // TODO
-    }
-
-    fn calc_cross_entropy(&self, output: &Matrix, target: &Matrix, batch_size: usize) -> f64 {
-        // TODO: Make static method
-        let log_output = output.mat_map(|x| x.ln());
-        let unsummed = target.ew_multiply(&log_output); // Elementwise multiply
-        let summed = unsummed.sum_rows().sum_cols();
-        - (summed[0][0] / batch_size as f64)
-    }
-
 }

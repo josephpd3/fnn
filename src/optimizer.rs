@@ -21,6 +21,10 @@ pub enum FNNOptimizer {
     Momentum {
         mu: f64
     },
+    /// My momentum implementation from older versions of FNN
+    NaiveMomentum {
+        mu: f64
+    },
     /// Root-Mean-Square Prop as made popular by Geoffrey Hinton's Coursera course
     RMSProp {
         decay_rate: f64,
@@ -39,7 +43,7 @@ pub struct Momentum {
 }
 
 impl Momentum {
-    fn new(mu: f64) -> Self {
+    pub fn new(mu: f64) -> Self {
         Momentum {
             mu: mu,
             velocity: None
@@ -67,6 +71,41 @@ impl Optimizer for Momentum {
     }
 }
 
+/// This struct replicates Momentum as I first implemented it in older versions
+pub struct NaiveMomentum {
+    mu: f64,
+    velocity: Option<Matrix>
+}
+
+impl NaiveMomentum {
+    pub fn new(mu: f64) -> Self {
+        NaiveMomentum {
+            mu: mu,
+            velocity: None
+        }
+    }
+}
+
+impl Optimizer for NaiveMomentum {
+    fn get_update(&mut self, parameters: &Matrix, deriv: &Matrix, learning_rate: f64) -> Matrix {
+        let updated_v: Matrix;
+
+        match self.velocity.take() {
+            Some(velocity) => {
+                updated_v = &velocity.mat_map(|x| self.mu * x) + &deriv;
+            },
+            None => {
+                updated_v = deriv.explicit_copy();
+            }
+        }
+
+        let scaled_v = updated_v.mat_map(|x| x * learning_rate);
+
+        self.velocity = Some(updated_v.explicit_copy());
+        scaled_v.mat_map(|x| -x)
+    }
+}
+
 /// This struct serves as the basis for RMSProp as popularized by Geoffrey Hinton's
 /// Coursera course on Neural Networks. RMSProp utilizes the magnitude of previous
 /// gradients to regulate how much the learning rate and current gradient impact
@@ -78,7 +117,7 @@ pub struct RMSProp {
 }
 
 impl RMSProp {
-    fn new(decay_rate: f64, epsilon: f64) -> Self {
+    pub fn new(decay_rate: f64, epsilon: f64) -> Self {
         RMSProp {
             decay_rate: decay_rate,
             epsilon: epsilon,

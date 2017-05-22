@@ -1,7 +1,10 @@
 use rand::StdRng;
 use statrs::distribution::{Bernoulli, Distribution};
 
-use layer::layer::*;
+use layer::base_layer::{
+    BaseLayer,
+    PropagationResult
+};
 use matrix::Matrix;
 use rand;
 
@@ -25,11 +28,17 @@ impl DropoutLayer {
 
 }
 
-impl Layer for DropoutLayer {
+impl BaseLayer for DropoutLayer {
 
-    fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> ForwardPropResult {
+    fn forward_prop(&mut self, input: &Matrix, batch_size: usize, training: bool) -> PropagationResult {
+        // Seed a Random Number Generator
         let mut rng = rand::StdRng::new().unwrap();
+
+        // Designate anonymous functions to use depending on whether the model
+        // is training or testing and utilize them via a match statement
+        
         let dropout = |x: f64| x * self.bern.sample::<StdRng>(&mut rng);
+        // If all models are being combined in testing, scale values by the probability they will have been kept.
         let scale = |x: f64| x * self.bern_coefficient;
 
         match training {
@@ -38,16 +47,11 @@ impl Layer for DropoutLayer {
         }
     }
 
-    fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> BackPropResult {
+    fn back_prop(&mut self, bp_deriv: &Matrix, learning_rate: f64, batch_size: usize) -> PropagationResult {
+        // As the next layer recieves a zero for input in zeroed out value
+        // locations, it will conveniently be backpropagated as a zero as well
+        // when it is combined with the derivative in said subsequent layer
         Ok(bp_deriv.explicit_copy())
-    }
-
-    fn update_weights(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> WeightUpdateResult {
-        Ok(())
-    }
-
-    fn update_biases(&mut self, learning_rate: f64, gradient: &Matrix, batch_size: usize) -> BiasUpdateResult {
-        Ok(())
     }
 
     fn get_output_len(&self) -> usize {
